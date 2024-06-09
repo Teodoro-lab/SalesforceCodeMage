@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { SalesforceAPI } from './SalesforceAPI';
 
 function escapeMarkdown(text: string): string {
     return text.replace(/([\\`*_{}[\]()#+\-.!])/g, '\\$1');
@@ -48,10 +49,11 @@ function createHoverContent(fields: any[], word: string): vscode.Hover {
     return new vscode.Hover(markdownString);
 }
 
-async function provideHover(document: vscode.TextDocument, position: vscode.Position, connection: any, SalesforceAPI: any): Promise<vscode.Hover> {
+async function provideHover(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Hover> {
     const wordRange = document.getWordRangeAtPosition(position);
     const word = document.getText(wordRange);
-    const fields = await SalesforceAPI.fetchFields(connection, word);
+    const salesforce = SalesforceAPI.getInstance();
+    const fields = await salesforce.fieldsOf(word);
 
     if (fields) {
         return createHoverContent(fields, word);
@@ -60,10 +62,10 @@ async function provideHover(document: vscode.TextDocument, position: vscode.Posi
     return new vscode.Hover('No information available');
 }
 
-export function setupHoverApexProvider(connection: any, SalesforceAPI: any): void {
+export function setupHoverApexProvider(): void {
     vscode.languages.registerHoverProvider('apex', {
         provideHover(document, position, token) {
-            return provideHover(document, position, connection, SalesforceAPI);
+            return provideHover(document, position);
         }
     });
 }

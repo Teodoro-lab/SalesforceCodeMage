@@ -26,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const connection = await salesforce.connect(username);
 
     const activateApexHover = vscode.workspace.getConfiguration('magicSF').get('activateApexHover');
-    if (activateApexHover) {setupHoverApexProvider(connection, SalesforceAPI);}
+    if (activateApexHover) {setupHoverApexProvider();}
     
     vscode.commands.registerCommand('magicSF.clearCache', clearCacheCmd);
     vscode.commands.registerCommand('magicSF.OpenFlowInOrg', openFlowInOrgCmd);
