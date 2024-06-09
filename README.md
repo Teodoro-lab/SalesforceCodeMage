@@ -39,6 +39,12 @@ For the extension to operate correctly, you need:
 
 ## Extension Settings
 
+- `magicSF.apexLogQuery`: Changing the fields is currently not yet supported, is just able to change the size of the query therefore changing the number of logs shown.
+- `magicSF.activateApexHoverr`: Hover providers sometimes don't offer the best UX, so If you want try it and then deactivate it you can.
+- `magicSF.cacheDuration`: Is used to determine if the cache has reach it's limit, still need improvement when deleting or caching new cache.
+
+### External Settings
+
 This extension depends on the following settings:
 
 - `mySalesforceExtension.targetOrg`: Set the default target Salesforce org for your extension operations.
