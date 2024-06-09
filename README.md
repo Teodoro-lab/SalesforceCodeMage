@@ -11,26 +11,22 @@ Salesforce CodeMage enhances the Salesforce development experience by providing 
 - **Show sObject Table** or **Show sObject Table with Selected Text**: Visualize fields of any sObject from your Salesforce org in a table, info like picklist values, required or length of the fields. Use the commands: <br/>
  `magicSF: Show SObject Table`<br/>
  `magicSF: Show SObject Table with Selected Text`<br/>
-<br/>
 ![Show sObject Table](resources/sf_sobject_table.gif)
 
 - **Download Debug Logs**: Download debug logs from your Salesforce org. You can download, reload and filter logs. Since all logs are save in debug-logs you can perform a "global" search in downloaded logs using the vscode search<br/>
 `magicSF: Open Debug Logs` <br/>
 `magicSF: Delete Debug Logs` <br/>
-<br/>
 ![Download Debug Logs](resources/sf_download_debug_logs.gif)
 
 - **Open Flow in Org**: Open Salesforce flows directly from your local project.
 `magicSF: Open Flow in Org`<br/>
-<br/>
 ![Open Flow in Org](resources/sf_open_flow_in_org.gif)
 
 - **Open Developer Console**: Quick access to the developer console of your selected Salesforce org.
 `magicSF: Open Developer Console`<br/>
-<br/>
 ![Open Developer Console](resources/sf_open_dev_console.gif)
 
-- **Apex hover provider for sObjects**: While hovering and sObject in Apex it allows you to see bojects and attributes of those as required or type.
+- **Apex hover provider for sObjects**: While hovering and sObject in Apex it allows you to see bojects and attributes of those as required or type.<br/>
 ![Apex hover provider for sObjects](resources/sf_hover_provider.gif)
 
 - **Caching**: All of the above features works with a cache that is stored in the .sf/magic_sf_api_cache or .sf/magic_sf_api_cache_log_analysis, if you need to see any change as new fields you will have to clear the cache using the command:<br/>
