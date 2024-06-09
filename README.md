@@ -1,6 +1,6 @@
 # Salesforce CodeMage - A Salesforce Extension for Salesforce Developers
 
-<img src="https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/resources/magicSF-logo.webp" alt="SalesforceCodeMage-logo" width="200"/>
+<img src="https://raw.githubusercontent.com/Teodoro-lab/SalesforceCodeMage/main/resources/magicSF-logo.webp" alt="SalesforceCodeMage-logo" width="200"/>
 
 <a href='https://ko-fi.com/teodorolab' target='_blank'><img height='35' style='border:0px;height:46px;' src='https://az743702.vo.msecnd.net/cdn/kofi3.png?v=0' border='0' alt='Buy Me a Coffee at ko-fi.com'></a>
 
