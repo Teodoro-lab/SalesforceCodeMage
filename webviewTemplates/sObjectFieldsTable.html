@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Details</title>
+    <link href="${codiconsUri}" rel="stylesheet" />
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--vscode-editorGroup-border);
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-editorGroup-border);
+        }
+        th {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+        }
+        .required {
+            color: var(--vscode-errorForeground);
+        }
+        .sortable:after {
+            content: " ↕";
+            color: var(--vscode-editor-inactiveSelectionBackground);
+        }
+        .sortable {
+            cursor: pointer;
+        }
+        input[type="text"] {
+            margin-bottom: 10px;
+            width: 20%;
+            padding: 8px;
+            border: 1px solid var(--vscode-input-border);
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+        }
+        .expandable-content {
+            display: none;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .expandable {
+            display: block;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fields of ${sObjectName}</h1>
+    <input type="text" id="searchInput" onkeyup="searchFields()" placeholder="Search for fields...">
+    <table id="fieldsTable">
+        <!-- Table headers and rows will be injected here -->
+    </table>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const expandableElements = document.querySelectorAll('.expandable');
+            const expandedElements = document.querySelectorAll('.expandable-content');
+
+            expandableElements.forEach(element => {
+                element.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                        element.style.display = 'block';
+                    } else {
+                        content.style.display = 'block';
+                        element.style.display = 'none';
+                    }
+                });
+            });
+
+            expandedElements.forEach(element => {
+                element.addEventListener('click', function() {
+                    this.style.display = 'none';
+                    this.previousElementSibling.style.display = 'block';
+                });
+            });
+        });
+
+        function searchFields() {
+            let input = document.getElementById('searchInput');
+            let filter = input.value.toUpperCase();
+            let table = document.getElementById('fieldsTable');
+            let tr = table.getElementsByTagName('tr');
+            for (let i = 1; i < tr.length; i++) {
+                let visible = false;
+                const tds = tr[i].getElementsByTagName('td');
+                for (let j = 0; j < tds.length; j++) {
+                    if (tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
+                        visible = true;
+                        break;
+                    }
+                }
+                tr[i].style.display = visible ? "" : "none";
+            }
+        }
+
+        function sortTable(column) {
+            let table, rows, switching, i, x, y, shouldSwitch;
+            table = document.getElementById("fieldsTable");
+            switching = true;
+            while (switching) {
+                // Start by saying: no switching is done
+                switching = false;
+                rows = table.rows;
+                // Loop through all table rows (except the first, which contains table headers)
+                for (i = 1; i < (rows.length - 1); i++) {
+                    // Start by saying there should be no switching
+                    shouldSwitch = false;
+                    // Get the two elements you want to compare, one from current row and one from the next
+                    x = rows[i].getElementsByTagName("TD")[column];
+                    y = rows[i + 1].getElementsByTagName("TD")[column];
+                    // Check if the two rows should switch place, based on the direction, asc or desc
+                    if (x.textContent.toLowerCase() > y.textContent.toLowerCase()) {
+                        // If so, mark as a switch and break the loop
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+                if (shouldSwitch) {
+                    // If a switch has been marked, make the switch and mark that a switch has been done
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

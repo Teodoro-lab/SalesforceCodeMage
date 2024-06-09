@@ -1,0 +1,121 @@
+{
+  "name": "SalesforceCodeMage",
+  "displayName": "Salesforce CodeMage",
+  "description": "Utilities for Salesforce developers",
+  "version": "1.0.0",
+  "icon": "resources/magicSF-logo.webp",
+  "publisher": "Teodoro-lab",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Teodoro-lab/SalesforceCodeMage.git"
+  },
+  "author": {
+    "name": "Teodoro-lab"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "magicSF.openDebugLogs",
+        "title": "magicSF: Open Debug Logs"
+      },
+      {
+        "command": "magicSF.clearCache",
+        "title": "magicSF: Clear Cache"
+      },
+      {
+        "command": "magicSF.sObjectTable",
+        "title": "magicSF: sObject table for extension internal use(DO NOT USE)"
+      },
+      {
+        "command": "magicSF.OpenFlowInOrg",
+        "title": "magicSF: Open Flow in Org"
+      },
+      {
+        "command": "magicSF.openDeveloperConsole",
+        "title": "magicSF: Open Developer Console"
+      },
+      {
+        "command": "magicSF.ShowSObjTable",
+        "title": "magicSF: Show SObject Table"
+      },
+      {
+        "command": "magicSF.ShowSObjTableWithSelectedText",
+        "title": "magicSF: Show SObject Table with Selected Text"
+      },
+      {
+        "command": "magicSF.deleteDebugLogs",
+        "title": "magicSF: Delete Debug Logs"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "magicSF.OpenFlowInOrg",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Salesforce CodeMage",
+      "properties": {
+        "magicSF.activateApexHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Activate Apex Hover"
+        },
+        "magicSF.cacheDuration": {
+          "type": "number",
+          "default": 86400000,
+          "description": "Cache duration in milliseconds (default is 24 hours)."
+        },
+        "magicSF.apexLogQuery": {
+          "type": "string",
+          "default": "SELECT Id, Application, DurationMilliseconds, Location, LogLength, LogUser.Name, Operation, Request, StartTime, Status FROM ApexLog ORDER BY StartTime DESC LIMIT 200",
+          "description": "Change the default query for debug logs"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "test-compile": "tsc -p ./",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8",
+    "esbuild": "^0.21.2",
+    "eslint": "^8.56.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@salesforce/apex-node": "^6.0.0",
+    "@salesforce/core": "^2.4.1",
+    "@vscode/codicons": "^0.0.36",
+    "bunyan": "^1.8.15",
+    "dtrace-provider": "^0.8.8",
+    "moment-timezone": "^0.5.45",
+    "node-polyfill-webpack-plugin": "^4.0.0",
+    "vite": "^5.2.12"
+  }
+}

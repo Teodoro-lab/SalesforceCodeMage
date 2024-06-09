@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Debug Logs</title>
+    <link href="${codiconsUri}" rel="stylesheet" />
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--vscode-editorGroup-border);
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;   
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-editorGroup-border); 
+        }
+        .td_time_col {
+            max-width: 200px;
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+        }
+        input, button {
+            color: var(--vscode-button-foreground);
+            background-color: var(--vscode-button-background);
+            border: none;
+            padding: 10px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        input {
+            border: 1px solid var(--vscode-input-border);
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+        }
+        button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .logIdLink {
+            cursor: pointer;
+        }
+
+        .logIdLink:hover {
+            text-decoration: underline;
+        }
+        
+        /* colors dark */
+        .color-red { background-color: #501010a8; box-shadow: inset 0 0 8px rgba(255, 0, 0, 0.6); }
+        .color-orange { background-color: #503115a8; box-shadow: inset 0 0 8px rgba(255, 165, 0, 0.6); }
+        .color-yellow { background-color: #47470ca8; box-shadow: inset 0 0 8px rgba(255, 255, 0, 0.6); }
+        .color-green { background-color: #093609a8; box-shadow: inset 0 0 8px rgba(0, 255, 0, 0.6); }
+
+        .color-white { box-shadow: None}
+
+        tr {
+            transition: box-shadow 0.3s ease, background-color 0.3s ease;
+        }
+
+        .debuglog_filters {
+            display: inline-block;
+        }
+
+        .error_msg {
+            color: red;
+            font-weight: bold;
+        }
+
+        .round {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+        }
+
+        .download-btn {
+            margin-left: 20px;
+        }
+
+        .table_actions {
+            display: flex;
+            align-items: center;
+        }
+
+        .reload-btn, .download-btn {
+            margin-left: 20px;
+        }
+
+        .color-cell {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Salesforce Debug Logs Viewer</h1>
+
+    <div>
+        <p class="error_msg"></p>
+    </div>
+    <div class="table_actions">
+        <button class="round clear-btn" onclick="removeFilters()">
+            <i id="removeFilterLogsButton" class="codicon codicon-filter-filled"></i>
+            <i id="filterLogsButton" class="codicon codicon-filter"></i>
+            clear filter
+        </button>
+        <div class="debuglog_filters">
+            <input onchange="filterLogs()" type="text" id="userFilter" placeholder="Filter by user name...">
+            <input onchange="filterLogs()" type="date" id="startDate">
+            <input onchange="filterLogs()" type="date" id="endDate">
+        </div>
+
+        <button onclick="downloadSelectedLogs()" class="round download-btn">
+            <i class="codicon codicon-cloud-download"></i> download
+        </button>
+        <button onclick="reloadLogs()" class="round reload-btn">
+            <i class="codicon codicon-refresh"></i> reload
+        </button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th></th>
+                <th><input type="checkbox" id="select-all" /></th>
+                <th>Loaded</th>
+                <th>Type(Beta)</th>
+                <th>Log ID</th>
+                <th>Application</th>
+                <th>User</th>
+                <th class="td_time_col">Start Time</th>
+                <th>Duration (ms)</th>
+                <th>Status</th>
+                <th>Operation</th>
+                <th>LogLength</th>
+                <th>Location</th>
+                <th>Request</th>
+            </tr>
+        </thead>
+        <tbody id="logTableBody">
+            <!-- {{LOG_ROWS}} -->
+        </tbody>
+    </table>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        // query all rows that start with id log-row
+        let allLogs = window.document.querySelectorAll('[id^="log-row-"]');
+        let allLogsArray = Array.from(allLogs);
+
+        const previousState = vscode.getState();
+
+        // Populate the filter fields with the previous state
+        let userFirstLoad = document.getElementById('userFilter').value = previousState?.userFilter || '';
+        let startDateFirstLoad = document.getElementById('startDate').value = previousState?.startDate || '';
+        let endDateFirstLoad = document.getElementById('endDate').value = previousState?.endDate || '';
+
+        if (!userFirstLoad && !startDateFirstLoad && !endDateFirstLoad) {
+            showFilterButton();
+        } else {
+            filterLogs();
+        }
+
+        window.addEventListener('message', event => {
+            console.log('Message received in webview');
+            const message = event.data;
+            switch (message.command) {
+                case 'logLoaded':
+                    console.log('Message received in webview' + message.command);
+                    let logId = message.logId;
+                    populateTypeAndLoaded(logId, message.analysis.operationName, '✅');
+                case 'logsFirstLoad':
+                    console.log('Message received in webview' + message.command);
+                    let logs = message.logs;
+                    let rows = generateRows(logs);
+                    document.getElementById('logTableBody').innerHTML = rows;
+                    allLogs = window.document.querySelectorAll('[id^="log-row-"]');
+                    allLogsArray = Array.from(allLogs);
+                    break;
+            }
+        });
+
+        document.getElementById('select-all').addEventListener('click', function(e) {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            for (let checkbox of checkboxes) {
+                checkbox.checked = e.target.checked;
+            }
+        });
+
+        function saveState() {
+            vscode.setState({
+                userFilter: document.getElementById('userFilter').value,
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                coloredLogs: allLogsArray.map(log => {
+                    return {
+                        id: log.id,
+                        color: log.getAttribute('data-color')
+                    };
+                }),
+                logsWithAnalysis: allLogsArray.map(log => {
+                    return {
+                        id: log.id,
+                        type: log.querySelector('.logType').textContent,
+                        loaded: log.querySelector('.logLoaded').textContent
+                    };
+                })
+            });
+        }
+
+        function populateTypeAndLoaded(logId, execType, logLoaded){
+            let logRow = document.getElementById(`log-row-${logId}`);
+            let type = logRow.querySelector('.logType');
+            let loaded = logRow.querySelector('.logLoaded');
+            type.innerHTML = execType;
+            loaded.innerHTML = logLoaded;
+        }
+
+        function showFilterButton(){
+            document.getElementById('removeFilterLogsButton').style.visibility = 'hidden';
+            document.getElementById('removeFilterLogsButton').style.display = 'None';
+            document.getElementById('filterLogsButton').style.visibility = 'visible';
+            document.getElementById('filterLogsButton').style.display = 'inline-block';
+        }
+
+        function showRemoveButton(){
+            document.getElementById('removeFilterLogsButton').style.visibility = 'visible';
+            document.getElementById('removeFilterLogsButton').style.display = 'inline-block';
+            document.getElementById('filterLogsButton').style.visibility = 'hidden';
+            document.getElementById('filterLogsButton').style.display = 'None';
+        } 
+
+        function removeFilters(){
+            showFilterButton();
+            document.getElementById('userFilter').value = '';
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            const tableBody = document.getElementById('logTableBody');
+            tableBody.innerHTML = ''; // Clear existing rows
+            allLogsArray.forEach(log => {
+                tableBody.appendChild(log);
+            });
+            saveState();
+        }
+
+        function showErrorMsg(msg) {
+            document.querySelector('.error_msg').textContent = msg;
+            // Hide the error message after 5 seconds
+            setTimeout(() => {
+                document.querySelector('.error_msg').textContent = '';
+            }, 5000);
+        }
+
+        function filterLogs() {
+            const tableBody = document.getElementById('logTableBody');
+            const user = document.getElementById('userFilter').value.trim();
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput = document.getElementById('endDate').value;
+            const startDate = startDateInput ? new Date(startDateInput) : null;
+            const endDate = endDateInput ? new Date(endDateInput) : null;
+
+            if (!user && !startDate && !endDate) {
+                removeFilters();
+                return;
+            }
+            if (startDate && endDate && startDate > endDate) {
+                endDateInput.value = '';
+                showErrorMsg('Start date cannot be greater than end date');
+                return;
+            }
+
+            showRemoveButton();
+
+            const filteredLogs = allLogsArray.filter(log => {
+                const logUser = log.querySelector('.log-user').textContent; // Assuming log is a DOM element
+                const logStartTime = log.querySelector('.start-time').textContent;
+                const logDate = new Date(logStartTime);
+
+                return (!user || logUser.includes(user)) && 
+                    (!startDate || logDate >= startDate) && 
+                    (!endDate || logDate <= endDate);
+            });
+
+            tableBody.innerHTML = ''; // Clear existing rows
+            filteredLogs.forEach(log => {
+                tableBody.appendChild(log.cloneNode(true)); // Append a clone if logs are DOM elements
+            });
+
+            saveState();
+        }
+
+
+        function downloadSelectedLogs() {
+            const selectedIds = Array.from(document.querySelectorAll('input[name="logSelect"]:checked')).map(input => input.value);
+
+            vscode.postMessage({
+                command: 'downloadLogs',
+                logIds: selectedIds
+            });
+        } 
+
+        function reloadLogs(){
+            vscode.postMessage({
+                command: 'reloadLogs'
+            });
+        }
+
+        document.addEventListener('click', function(event) {
+            const target = event.target;
+            if (target.classList.contains('logIdLink')) {
+                const logId = target.textContent;
+                vscode.postMessage({
+                    command: 'openLog',
+                    logId: logId
+                });
+            } 
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableBody = document.getElementById('logTableBody');
+            const colorClasses = ['color-white', 'color-red', 'color-orange', 'color-yellow', 'color-green'];
+            const emojiClasses = ['⚪', '🔴', '🟠', '🟡', '🟢'];
+
+            tableBody.addEventListener('click', function(event) {
+                if (event.target.classList.contains('color-cell')) {
+                    const row = event.target.parentNode; 
+                    let currentColorIndex = colorClasses.indexOf(row.getAttribute('data-color')) || 0;
+                    currentColorIndex = (currentColorIndex + 1) % colorClasses.length;
+
+                    // set the new color class and emoji
+                    row.className = ''; 
+                    row.classList.add(colorClasses[currentColorIndex]); 
+                    row.setAttribute('data-color', colorClasses[currentColorIndex]); 
+                    row.querySelector('.color-cell').textContent = emojiClasses[currentColorIndex];
+                }
+            });
+        });
+
+        function generateRows(logs) {
+            let rows = '';
+            logs.forEach(log => {
+                rows += generateTableRow(log);
+            });
+            return rows;
+        }
+
+        function generateTableRow(log) {
+            return `
+                <tr Id="log-row-${log.Id}" data-color="color-white">
+                    <td class="color-cell">
+                        ⚪
+                    </td>
+                    <td><input type="checkbox" name="logSelect" value="${log.Id}"></td>
+                    <td class="logLoaded">${log.Loaded}</td>
+                    <td class="logType">${log.Type}</td>
+                    <td class="logId">
+                        <a class="logIdLink">${log.Id}</a>    
+                    </td>
+                    <td class="application">${log.Application}</td>
+                    <td class="log-user">${log.LogUser.Name}</td>
+                    <td class="start-time td_time_col">${log.StartTime}</td>
+                    <td class="duration">${log.DurationMilliseconds}</td>
+                    <td class="status">${log.Status}</td>
+                    <td class="operation">${log.Operation}</td>
+                    <td class="log-length">${log.LogLength}</td>
+                    <td class="location">${log.Location}</td>
+                    <td class="request">${log.Request}</td>
+                </tr>
+            `;
+        }
+    </script>
+</body>
+</html>
