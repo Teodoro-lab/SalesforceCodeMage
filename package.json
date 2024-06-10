@@ -2,9 +2,10 @@
   "name": "SalesforceCodeMage",
   "displayName": "Salesforce CodeMage",
   "description": "Utilities for Salesforce developers",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "icon": "resources/magicSF-logo.webp",
   "publisher": "Teodoro-lab",
+  "homepage": "https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/README.md",
   "repository": {
     "type": "git",
     "url": "https://github.com/Teodoro-lab/SalesforceCodeMage"
