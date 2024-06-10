@@ -1,7 +1,5 @@
 # Salesforce CodeMage - A Salesforce Extension for Salesforce Developers
 
-<img src="https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/resources/magicSF-logo.webp" alt="SalesforceCodeMage-logo" width="200"/>
-
 <a href='https://ko-fi.com/teodorolab' target='_blank'><img height='35' style='border:0px;height:46px;' src='https://az743702.vo.msecnd.net/cdn/kofi3.png?v=0' border='0' alt='Buy Me a Coffee at ko-fi.com'></a>
 
 Salesforce CodeMage enhances the Salesforce development experience by providing direct access to Salesforce orgs' details, opening developer consoles, displaying Salesforce Object (sObject) fields or downloading, reading and managing debug logs.
@@ -40,6 +38,12 @@ For the extension to operate correctly, you need:
 - Access rights to the `.sf/config.json` file in your project's root directory to determine the target Salesforce org. (don't have to do anything 99% time you have this)
 
 ## Extension Settings
+
+- `magicSF.apexLogQuery`: Changing the fields is currently not yet supported, is just able to change the size of the query therefore changing the number of logs shown.
+- `magicSF.activateApexHoverr`: Hover providers sometimes don't offer the best UX, so If you want try it and then deactivate it you can.
+- `magicSF.cacheDuration`: Is used to determine if the cache has reach it's limit, still need improvement when deleting or caching new cache.
+
+### External Settings
 
 This extension depends on the following settings:
 
