@@ -2,7 +2,7 @@
   "name": "SalesforceCodeMage",
   "displayName": "Salesforce CodeMage",
   "description": "Utilities for Salesforce developers",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "icon": "resources/magicSF-logo.webp",
   "publisher": "Teodoro-lab",
   "homepage": "https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/README.md",
@@ -17,7 +17,8 @@
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
