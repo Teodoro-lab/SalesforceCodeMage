@@ -114,4 +114,56 @@ export class SalesforceAPI {
     private static formatLogDate(date: string): string {
         return timezone.tz(date, 'UTC').format('YYYY-MM-DD \nhh:mm:ss A z');
     }
+
+    public async getTraceFlags() {
+        if (!this.connection) throw new Error('Connection not initialized');
+
+        const baseUrl = this.connection.tooling._baseUrl();
+        const query = `SELECT Id, TracedEntity.Name, TracedEntityId, LogType, DebugLevel.DeveloperName, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='USER_DEBUG'`;
+        const encodedQuery = encodeURIComponent(query);
+        const url = `${baseUrl}/query/?q=${encodedQuery}`;
+        const response = await this.connection.tooling.request(url) as { records: any[] };
+        return response.records;
+    }
+
+    public async reactivateTraceFlag(traceFlagId: string): Promise<void> {
+        console.log('Reactivate trace flag START' );
+        
+        if (!this.connection) throw new Error('Connection not initialized');
+
+        const baseUrl = this.connection.tooling._baseUrl();
+        const url = `${baseUrl}/sobjects/TraceFlag/${traceFlagId}`;
+        const payload = {
+            StartDate: new Date().toISOString(),
+            ExpirationDate: new Date(Date.now() + 120 * 60 * 1000).toISOString(), // 120 minutes from now
+        };
+        console.log('Reactivate trace flag URL: ', url);
+        console.log('Reactivate trace flag Payload: ', payload);
+        /**}
+         * REQUEST IS OF THIS FORM
+         * 
+         *         const request = {
+            method: 'POST',
+            url,
+            body: JSON.stringify(body),
+            headers: { 'content-type': 'application/json' },
+        };
+         */
+        try {
+            let response = await this.connection.request(
+                {
+                    method: 'PATCH',
+                    url,
+                    body: JSON.stringify(payload),
+                    headers: { 'content-type': 'application/json' },
+                }
+            );
+            // const response = await this.connection.tooling.request(url, { method: 'PATCH', body: JSON.stringify(payload) } as any);
+            console.log('Reactivate trace flag response: ', response);
+        } catch (error) {
+            console.error('Error reactivating trace flag: ', error);
+        }
+        console.log('Reactivate trace flag END');
+    }
+
 }

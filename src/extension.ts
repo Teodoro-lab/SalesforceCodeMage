@@ -7,11 +7,16 @@ import { setupHoverApexProvider } from './apexHoverProvider';
 import { clearCache } from './cache';
 import { openLogsWebViewCmd, deleteDebugLogsCmd } from './logHandling/LogsCommands';
 import { createSObjTableWebView, showSObjTable } from './sObjectsTables/sObjectsHandling';
+import { LWCExplorerProvider } from './LWCExplorerProvider';
+import { openTraceFlagsWebViewCmd } from './sfTraceFlags/traceflags';
 
 export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
     
     const salesforce = SalesforceAPI.getInstance();
+    
+
+    vscode.window.showInformationMessage('magicSF is activated!');
     const orgs = await SalesforceAPI.getOrgsInfo();
 
     let targetOrg: string;
@@ -25,6 +30,14 @@ export async function activate(context: vscode.ExtensionContext) {
     const username = orgs.find((org: any) => org.alias === targetOrg).username;
     const connection = await salesforce.connect(username);
 
+    const testCon = await SalesforceAPI.getConnection(username);
+    vscode.window.showInformationMessage('Conn url: ' + testCon.tooling.autoFetchQuery('SELECT Name from Account'));
+    
+    console.log('GETTING TRACE FLAGS');
+    
+    salesforce.getTraceFlags();
+
+
     const activateApexHover = vscode.workspace.getConfiguration('magicSF').get('activateApexHover');
     if (activateApexHover) {setupHoverApexProvider();}
     
@@ -36,6 +49,39 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context);});
     vscode.commands.registerCommand('magicSF.openDebugLogs', () => {openLogsWebViewCmd(context);});
     vscode.commands.registerCommand('magicSF.deleteDebugLogs', deleteDebugLogsCmd);
+
+    const lwcExplorerProvider = new LWCExplorerProvider();
+    vscode.window.registerTreeDataProvider('lwcExplorer', lwcExplorerProvider);
+    vscode.commands.registerCommand('magicSF.refresh', () => lwcExplorerProvider.refresh());
+
+    vscode.commands.registerCommand('magicSF.showTraceFlags', async () => {
+        await openTraceFlagsWebViewCmd(context);
+    });
+
+    vscode.commands.registerCommand('lwcExplorer.openFile', (resourceUri: vscode.Uri) => {switchLwcTabsCmd(resourceUri);});
+}
+
+async function switchLwcTabsCmd(resourceUri: vscode.Uri) {
+    const previousEditor = vscode.window.activeTextEditor;
+
+    await vscode.commands.executeCommand('vscode.open', resourceUri);
+
+    // Check configuration and close the previously active editor if enabled
+    const closePreviousEditor = vscode.workspace.getConfiguration('magicSF').get('closePreviousEditorOnOpen', false);
+    if (closePreviousEditor && previousEditor && previousEditor.document.uri.toString() !== resourceUri.toString()) {
+        await closeEditor(previousEditor);
+    }
+}
+
+async function closeEditor(editor: vscode.TextEditor) {
+    const allGroups = vscode.window.tabGroups.all;
+    for (const group of allGroups) {
+        const tab = group.tabs.find(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === editor.document.uri.toString());
+        if (tab) {
+            await vscode.window.tabGroups.close(tab, false);
+            break;
+        }
+    }
 }
 
 async function clearCacheCmd() {

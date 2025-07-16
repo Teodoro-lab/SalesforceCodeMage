@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trace Flags</title>
+    <link rel="stylesheet" href="${codiconsUri}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        /* th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        } */
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* General Styles */
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 {
+            color: var(--vscode-editor-foreground);
+            margin-bottom: 20px;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            /* border-radius: 8px; */
+            overflow: hidden;
+            border: 1px solid var(--vscode-editorGroup-border);
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-editorGroup-border);
+        }
+
+        th {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+
+        /* Button Styles */
+        button {
+            color: var(--vscode-button-foreground);
+            background-color: var(--vscode-button-background);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .reload-btn {
+            margin-bottom: 20px;
+        }
+
+        /* Status Emoji Styles */
+        .status-emoji {
+            font-size: 1.2em;
+        }
+
+        .status-expired {
+            color: var(--vscode-errorForeground);
+        }
+
+        .status-active {
+            color: var(--vscode-gitDecoration-addedResourceForeground);
+        }
+
+        /* Input Styles */
+        input {
+            color: var(--vscode-input-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 8px;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        input::placeholder {
+            color: var(--vscode-input-placeholderForeground);
+        }
+
+        /* Error Message Styles */
+        .error_msg {
+            color: var(--vscode-errorForeground);
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        /* Round Elements */
+        .round {
+            border-radius: 5px;
+        }
+
+        /* Table Actions */
+        .table_actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* Spacing for Reload Button */
+        .reload-btn {
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Trace Flags</h1>
+
+    <!-- Table Actions -->
+    <div class="table_actions">
+        <button onclick="reloadTraceFlags()" class="round reload-btn" id="refreshButton">
+            <i class="codicon codicon-refresh"></i> Reload
+        </button>
+    </div>
+
+    <table id="traceFlagsTable">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Log Type</th>
+                <th>Debug Level</th>
+                <th>Start Date</th>
+                <th>Expiration Date</th>
+                <th>Debug Level ID</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="traceFlagsTableBody">
+            <!-- Rows will be populated by JavaScript -->
+        </tbody>
+    </table>
+    <script>
+        const vscode = acquireVsCodeApi();
+
+        // Handle messages from the extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+                case 'traceFlagsFirstLoad':
+                    populateTraceFlagsTable(message.traceFlags);
+                    break;
+                case 'traceFlagReactivated':
+                    alert(`Trace Flag ${message.traceFlagId} reactivated.`);
+                    populateTraceFlagsTable(message.traceFlags);
+                    break;
+                case 'traceFlagsRefreshed':
+                    populateTraceFlagsTable(message.traceFlags);
+                    break;
+            }
+        });
+
+        // Populate the table with trace flags
+        function populateTraceFlagsTable(traceFlags) {
+            const tableBody = document.querySelector('#traceFlagsTable tbody');
+            tableBody.innerHTML = traceFlags.map(tf => `
+                <tr>
+                    <td>${tf.TracedEntity.Name}</td>
+                    <td>${tf.LogType}</td>
+                    <td>${tf.DebugLevel.DeveloperName}</td>
+                    <td>${formatDate(tf.StartDate)}</td>
+                    <td>${formatDate(tf.ExpirationDate)}</td>
+                    <td>${tf.DebugLevelId}</td>
+                    <td>${getStatusEmoji(tf.ExpirationDate)}</td>
+                    <td><button onclick="reactivateTraceFlag('${tf.Id}')">Reactivate</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function formatDate(utcDateString) {
+            if (!utcDateString) return 'N/A'; // Handle null or undefined dates
+            const date = new Date(utcDateString);
+            return date.toLocaleString(); // Convert to local time and format
+        }
+
+        // Send a message to the extension to reactivate a trace flag
+        function reactivateTraceFlag(traceFlagId) {
+            vscode.postMessage({
+                command: 'reactivateTraceFlag',
+                traceFlagId: traceFlagId
+            });
+        }
+
+        // Add event listener for the refresh button
+        document.getElementById('refreshButton').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'refreshTraceFlags'
+            });
+        });
+
+                // Get an emoji or status indicator for expired trace flags
+        function getStatusEmoji(expirationDate) {
+            if (!expirationDate) return '❓'; // Unknown status
+            const now = new Date();
+            const expiration = new Date(expirationDate);
+            return expiration < now ? '❌ Expired' : '✅ Active';
+        }
+    </script>
+</body>
+</html>

@@ -103,6 +103,10 @@
         .color-cell {
             cursor: pointer;
         }
+
+        tr:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
     </style>
 </head>
 <body>
@@ -371,7 +375,7 @@
                     </td>
                     <td class="application">${log.Application}</td>
                     <td class="log-user">${log.LogUser.Name}</td>
-                    <td class="start-time td_time_col">${log.StartTime}</td>
+                    <td class="start-time td_time_col">${formatDate(log.StartTime)}</td>
                     <td class="duration">${log.DurationMilliseconds}</td>
                     <td class="status">${log.Status}</td>
                     <td class="operation">${log.Operation}</td>
@@ -381,6 +385,25 @@
                 </tr>
             `;
         }
+
+        function formatDate(utcDateString) {
+            if (!utcDateString) return 'N/A'; // Handle null or undefined dates
+            const date = new Date(utcDateString);
+            return date.toLocaleString(); // Convert to local time and format
+        }
+
+        let lastChecked = null;
+        document.getElementById('logTableBody').addEventListener('click', function(event) {
+            if (event.target.type === 'checkbox' && event.shiftKey) {
+                let checkboxes = Array.from(document.querySelectorAll('input[name="logSelect"]'));
+                let start = checkboxes.indexOf(lastChecked);
+                let end = checkboxes.indexOf(event.target);
+
+                checkboxes.slice(Math.min(start, end), Math.max(start, end) + 1)
+                    .forEach(checkbox => checkbox.checked = lastChecked.checked);
+            }
+            lastChecked = event.target;
+        });
     </script>
 </body>
 </html>
