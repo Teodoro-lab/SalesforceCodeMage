@@ -10,10 +10,10 @@ import { fillHtmlContent } from './sObjectHtml';
  * @param connection jsforce.Connection
  * @param sObjectName string @example 'Account' 
  **/
-export async function showSObjTable(context: vscode.ExtensionContext, sObjectName: string, fields: any[]) {
+export async function showSObjTable(context: vscode.ExtensionContext, sObjectName: string, fields: any[], instanceUrl?: string) {
     if (sObjectName) {
         const extPath = context.extensionPath;
-        createSObjTableWebView(extPath, fields, sObjectName);
+        createSObjTableWebView(extPath, fields, sObjectName, instanceUrl, context);
     } else {
         vscode.window.showInformationMessage('You did not enter anything');
     }
@@ -26,7 +26,7 @@ export async function showSObjTable(context: vscode.ExtensionContext, sObjectNam
  * @param fields any[]
  * @param sObjectName string
  **/
-export async function createSObjTableWebView(extPath: string, fields: any[], sObjectName: string) {
+export async function createSObjTableWebView(extPath: string, fields: any[], sObjectName: string, instanceUrl?: string, context?: vscode.ExtensionContext) {
     const panel = vscode.window.createWebviewPanel(
         'objFields',
         sObjectName + ' Fields',
@@ -37,8 +37,16 @@ export async function createSObjTableWebView(extPath: string, fields: any[], sOb
             retainContextWhenHidden: true,
         }
     );
+    let codiconsUri; 
+    if (context){
+        console.log(`Context provided, using codicons URI.`);
+        codiconsUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'));
+    }
+    
     const htmlPath = path.normalize(path.join(extPath, 'webviewTemplates/sObjectFieldsTable.html'));
     let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-    const filledHtml = fillHtmlContent(htmlContent, fields, sObjectName);
+    htmlContent = htmlContent.replace('${codiconsUri}', codiconsUri ? codiconsUri.toString() : '');
+    console.log(`HTML content loaded from: ${htmlPath}`);
+    const filledHtml = fillHtmlContent(htmlContent, fields, sObjectName, instanceUrl);
     panel.webview.html = filledHtml;
 }

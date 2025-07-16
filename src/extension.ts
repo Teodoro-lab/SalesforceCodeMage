@@ -45,8 +45,8 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('magicSF.OpenFlowInOrg', openFlowInOrgCmd);
     vscode.commands.registerCommand('magicSF.openDeveloperConsole', () => {openDeveloperConsoleCmd(targetOrg);});
     vscode.commands.registerCommand('magicSF.sObjectTable', (args) => {sObjectTableCmd(args, context);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {showObjectTableInputCmd(context);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context);});
+    vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {showObjectTableInputCmd(context, targetOrg);});
+    vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context, targetOrg);});
     vscode.commands.registerCommand('magicSF.openDebugLogs', () => {openLogsWebViewCmd(context);});
     vscode.commands.registerCommand('magicSF.deleteDebugLogs', deleteDebugLogsCmd);
 
@@ -123,7 +123,7 @@ async function sObjectTableCmd(args: any, context: vscode.ExtensionContext) {
     createSObjTableWebView(extPath, fields, sObjectName);
 }
 
-async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext) {
+async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext, targetOrg: string) {
     vscode.window.showInformationMessage('Getting details for the selected sObject...');
     const editor = vscode.window.activeTextEditor;
     if (editor) {
@@ -131,17 +131,21 @@ async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext) {
         const selectedText = editor.document.getText(selection);
         const salesforce = SalesforceAPI.getInstance();
         const fields = await salesforce.fieldsOf(selectedText);
-        showSObjTable(context, selectedText, fields);
+        const org = await salesforce.orgDetails(targetOrg);
+        const instanceUrl = org.instanceUrl;
+        showSObjTable(context, selectedText, fields, instanceUrl);
     }
 }
 
-async function showObjectTableInputCmd(context: vscode.ExtensionContext) {
+async function showObjectTableInputCmd(context: vscode.ExtensionContext, targetOrg: string) {
     vscode.window.showInformationMessage('Getting details for the sObject...');
     const sObjectName : string = await vscode.window.showInputBox({
         placeHolder: 'Enter the sObject name to get the details',
     }) || '';
     const salesforce = SalesforceAPI.getInstance();
     const fields = await salesforce.fieldsOf(sObjectName);
-    showSObjTable(context, sObjectName, fields);
+    const org = await salesforce.orgDetails(sObjectName);
+    const instanceUrl = org.instanceUrl;
+    showSObjTable(context, sObjectName, fields, instanceUrl);
 }
 

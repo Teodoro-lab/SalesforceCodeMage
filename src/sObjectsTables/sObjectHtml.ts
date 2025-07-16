@@ -1,9 +1,23 @@
-export function fillHtmlContent(html: string, fields: any[], sObjectName: string): string {
+export function fillHtmlContent(html: string, fields: any[], sObjectName: string, instanceUrl?: string): string {
     const headers = generateTableHeaders();
-    const rows = generateTableRows(fields);
-
-    html = html.replace('${sObjectName}', sObjectName);
-    return html.replace('<!-- Table headers and rows will be injected here -->', headers + rows);
+    const rows = generateTableRows(fields, sObjectName, instanceUrl);
+    // Add link icon next to object name
+    let objectLink = '';
+    let clippy = '';
+    let sObjectJsonScript = '';
+    if (instanceUrl) {
+        console.log(`Instance URL: ${instanceUrl}`);
+        objectLink = `<a href="${instanceUrl}/lightning/setup/ObjectManager/${sObjectName}/Details/view" target="_blank" title="Open in Salesforce Setup" style="margin-left:8px;">🧷</a>`;
+        clippy = `<i id="filterLogsButton" class="codicon codicon-clippy"></i>`;
+        // Inject the sObject JSON as a global variable for the clippy icon
+        const sObjectJson = JSON.stringify({ sObjectName, fields }, null, 2);
+        sObjectJsonScript = `<script>window.sObjectJson = ${JSON.stringify(sObjectJson)};</script>`;
+    }
+    html = html.replace('${sObjectName}', sObjectName + objectLink + clippy);
+    let filled = html.replace('<!-- Table headers and rows will be injected here -->', headers + rows);
+    // Inject the JSON script before </body>
+    filled = filled.replace('</body>', sObjectJsonScript + '</body>');
+    return filled;
 }
 
 function generateTableHeaders(): string {
@@ -21,11 +35,11 @@ function generateTableHeaders(): string {
     `;
 }
 
-function generateTableRows(fields: any[]): string {
-    return fields.map(field => generateTableRow(field)).join('');
+function generateTableRows(fields: any[], sObjectName: string, instanceUrl?: string): string {
+    return fields.map(field => generateTableRow(field, sObjectName, instanceUrl)).join('');
 }
 
-function generateTableRow(field: any): string {
+function generateTableRow(field: any, sObjectName: string, instanceUrl?: string): string {
     const picklistValues = generatePicklistValues(field);
     let picklistHTML;
 
@@ -42,9 +56,15 @@ function generateTableRow(field: any): string {
     const requiredDisplay = field.nillable ? 'Optional' : 'Required';
     const requiredStyle = field.nillable ? '' : 'required';
 
+    // Add link icon for field
+    let fieldLink = '';
+    if (instanceUrl) {
+        fieldLink = `<a href="${instanceUrl}/lightning/setup/ObjectManager/${sObjectName}/FieldsAndRelationships/${field.name}/view" target="_blank" title="Open field in Salesforce Setup" style="margin-left:4px;">🧷</a>`;
+    }
+
     return `
         <tr class="field-row">
-            <td>${field.label}</td>
+            <td>${field.label} ${fieldLink}</td>
             <td>${field.name}</td>
             <td>${field.type}</td>
             <td>${field.length || 'N/A'}</td>

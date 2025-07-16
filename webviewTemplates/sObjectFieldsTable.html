@@ -56,17 +56,45 @@
 </head>
 <body>
     <h1>Fields of ${sObjectName}</h1>
-    <input type="text" id="searchInput" onkeyup="searchFields()" placeholder="Search for fields...">
+    <div style="margin-bottom: 10px;">
+        <label style="margin-right: 15px;">
+            <input type="checkbox" id="ignoreSystemFields" checked onchange="toggleSystemFields()"> Ignore system fields
+        </label>
+        <input type="text" id="searchInput" onkeyup="searchFields()" placeholder="Search for fields...">
+    </div>
     <table id="fieldsTable">
         <!-- Table headers and rows will be injected here -->
     </table>
     <script>
+        // Copy object JSON to clipboard when clippy icon is clicked
+        window.addEventListener('DOMContentLoaded', function() {
+            const clippy = document.getElementById('filterLogsButton');
+            if (clippy) {
+                clippy.style.cursor = 'pointer';
+                clippy.title = 'Copy object JSON to clipboard';
+                clippy.addEventListener('click', function() {
+                    // The object JSON string is injected as a global variable by the TS code
+                    if (window.sObjectJson) {
+                        navigator.clipboard.writeText(window.sObjectJson).then(function() {
+                            alert('Object JSON copied to clipboard!');
+                        }, function() {
+                            alert('Failed to copy JSON.');
+                        });
+                    } else {
+                        alert('No object JSON found.');
+                    }
+                });
+            }
+        });
         document.addEventListener('DOMContentLoaded', function() {
+            toggleSystemFields();
             const expandableElements = document.querySelectorAll('.expandable');
             const expandedElements = document.querySelectorAll('.expandable-content');
 
             expandableElements.forEach(element => {
-                element.addEventListener('click', function() {
+                // Single click: allow text selection (default browser behavior)
+                // Double click: expand/collapse picklist values
+                element.addEventListener('dblclick', function(e) {
                     const content = this.nextElementSibling;
                     if (content.style.display === 'block') {
                         content.style.display = 'none';
@@ -79,12 +107,50 @@
             });
 
             expandedElements.forEach(element => {
-                element.addEventListener('click', function() {
+                element.addEventListener('dblclick', function() {
                     this.style.display = 'none';
                     this.previousElementSibling.style.display = 'block';
                 });
             });
         });
+
+        // List of system fields to hide
+        const systemFields = [
+            'Id',
+            'IsDeleted',
+            'LastReferencedDate',
+            'LastViewedDate',
+            'CreatedById',
+            'CreatedDate',
+            'LastModifiedById',
+            'LastModifiedDate',
+            'SystemModstamp'
+        ];
+
+        function toggleSystemFields() {
+            console.log('Toggling system fields visibility');
+            const ignore = document.getElementById('ignoreSystemFields').checked;
+            const table = document.getElementById('fieldsTable');
+            const tr = table.getElementsByTagName('tr');
+            for (let i = 1; i < tr.length; i++) {
+                let apiName = '';
+                const tds = tr[i].getElementsByTagName('td');
+                console.log(`Processing row ${i}, cells: ${tds.length}`);
+                // Find the cell with the API name (should match the Name column header)
+                for (let j = 0; j < tds.length; j++) {
+                    console.log(`Checking cell ${j}: ${tds[j].textContent.trim()}`);
+                    // Try to match the column header 'Name' (assume second column by default)
+                    if (tr[0].getElementsByTagName('th')[j] && tr[0].getElementsByTagName('th')[j].textContent.trim() === 'Name') {
+                        console.log(`Found API name in cell ${j}: ${tds[j].textContent.trim()}`);
+                        apiName = tds[j].textContent.trim();
+                        break;
+                    }
+                }
+                if (systemFields.includes(apiName)) {
+                    tr[i].style.display = ignore ? 'none' : '';
+                }
+            }
+        }
 
         function searchFields() {
             let input = document.getElementById('searchInput');
