@@ -198,18 +198,28 @@
         // Populate the table with trace flags
         function populateTraceFlagsTable(traceFlags) {
             const tableBody = document.querySelector('#traceFlagsTable tbody');
-            tableBody.innerHTML = traceFlags.map(tf => `
-                <tr>
-                    <td>${tf.TracedEntity.Name}</td>
-                    <td>${tf.LogType}</td>
-                    <td>${tf.DebugLevel.DeveloperName}</td>
-                    <td>${formatDate(tf.StartDate)}</td>
-                    <td>${formatDate(tf.ExpirationDate)}</td>
-                    <td>${tf.DebugLevelId}</td>
-                    <td>${getStatusEmoji(tf.ExpirationDate)}</td>
-                    <td><button onclick="reactivateTraceFlag('${tf.Id}')">Reactivate</button></td>
-                </tr>
-            `).join('');
+            tableBody.innerHTML = traceFlags.map(tf => {
+                const userName = tf.TracedEntity && tf.TracedEntity.Name ? tf.TracedEntity.Name : 'N/A';
+                const logType = tf.LogType || 'N/A';
+                const debugLevel = tf.DebugLevel && tf.DebugLevel.DeveloperName ? tf.DebugLevel.DeveloperName : 'N/A';
+                const startDate = formatDate(tf.StartDate);
+                const expirationDate = formatDate(tf.ExpirationDate);
+                const debugLevelId = tf.DebugLevelId || 'N/A';
+                const status = getStatusEmoji(tf.ExpirationDate);
+                const id = tf.Id || 'N/A';
+                return `
+                    <tr>
+                        <td>${userName}</td>
+                        <td>${logType}</td>
+                        <td>${debugLevel}</td>
+                        <td>${startDate}</td>
+                        <td>${expirationDate}</td>
+                        <td>${debugLevelId}</td>
+                        <td>${status}</td>
+                        <td><button onclick="reactivateTraceFlag('${id}')">Reactivate</button></td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function formatDate(utcDateString) {

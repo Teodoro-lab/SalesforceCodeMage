@@ -56,12 +56,21 @@
 </head>
 <body>
     <h1>Fields of ${sObjectName}</h1>
-    <div style="margin-bottom: 10px;">
-        <label style="margin-right: 15px;">
-            <input type="checkbox" id="ignoreSystemFields" checked onchange="toggleSystemFields()"> Ignore system fields
-        </label>
-        <input type="text" id="searchInput" onkeyup="searchFields()" placeholder="Search for fields...">
+    <div style="margin-bottom: 10px; display: flex; align-items: center;">
+        <input type="text" id="searchInput" onchange="searchFields()" placeholder="Search for fields..." style="margin-right: 15px;">
+        <div style="margin-left: auto; display: flex; gap: 18px; align-items: center;">
+            <label>
+                <input type="checkbox" id="ignoreSystemFields" checked onchange="toggleSystemFields()"> Ignore system fields
+            </label>
+            <label>
+                <input type="checkbox" id="showStandardFields" checked onchange="toggleSystemFields()"> Show standard fields
+            </label>
+            <label>
+                <input type="checkbox" id="showCustomFields" checked onchange="toggleSystemFields()"> Show custom fields
+            </label>
+        </div>
     </div>
+    <div id="clipboardMsg" style="display:none;position:fixed;top:20px;right:30px;background:var(--vscode-editorWidget-background,#333);color:var(--vscode-editorWidget-foreground,#fff);padding:8px 16px;border-radius:6px;z-index:1000;opacity:0;transition:opacity 0.7s;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:1rem;">Copied to clipboard</div>
     <table id="fieldsTable">
         <!-- Table headers and rows will be injected here -->
     </table>
@@ -76,18 +85,40 @@
                     // The object JSON string is injected as a global variable by the TS code
                     if (window.sObjectJson) {
                         navigator.clipboard.writeText(window.sObjectJson).then(function() {
-                            alert('Object JSON copied to clipboard!');
+                            showClipboardMsg();
                         }, function() {
-                            alert('Failed to copy JSON.');
+                            showClipboardMsg('Failed to copy JSON');
                         });
                     } else {
-                        alert('No object JSON found.');
+                        showClipboardMsg('No object JSON found');
                     }
                 });
             }
+            function showClipboardMsg(msg) {
+                var el = document.getElementById('clipboardMsg');
+                el.textContent = msg || 'Copied to clipboard';
+                el.style.display = 'block';
+                el.style.opacity = '1';
+                setTimeout(function() {
+                    el.style.opacity = '0';
+                }, 1200);
+                setTimeout(function() {
+                    el.style.display = 'none';
+                }, 2000);
+            }
         });
         document.addEventListener('DOMContentLoaded', function() {
-            toggleSystemFields();
+            filterFields();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    filterFields();
+                });
+            }
+            document.getElementById('ignoreSystemFields').addEventListener('change', filterFields);
+            document.getElementById('showStandardFields').addEventListener('change', filterFields);
+            document.getElementById('showCustomFields').addEventListener('change', filterFields);
+
             const expandableElements = document.querySelectorAll('.expandable');
             const expandedElements = document.querySelectorAll('.expandable-content');
 
@@ -124,49 +155,46 @@
             'CreatedDate',
             'LastModifiedById',
             'LastModifiedDate',
-            'SystemModstamp'
+            'SystemModstamp',
+            'LastActivityDate',
+            'OwnerId'
         ];
 
-        function toggleSystemFields() {
-            console.log('Toggling system fields visibility');
+        // Unified filter for both search and checkboxes
+        function filterFields() {
             const ignore = document.getElementById('ignoreSystemFields').checked;
+            const showStandard = document.getElementById('showStandardFields').checked;
+            const showCustom = document.getElementById('showCustomFields').checked;
+            const input = document.getElementById('searchInput');
+            const filter = input.value.toUpperCase();
             const table = document.getElementById('fieldsTable');
             const tr = table.getElementsByTagName('tr');
             for (let i = 1; i < tr.length; i++) {
                 let apiName = '';
                 const tds = tr[i].getElementsByTagName('td');
-                console.log(`Processing row ${i}, cells: ${tds.length}`);
-                // Find the cell with the API name (should match the Name column header)
                 for (let j = 0; j < tds.length; j++) {
-                    console.log(`Checking cell ${j}: ${tds[j].textContent.trim()}`);
-                    // Try to match the column header 'Name' (assume second column by default)
                     if (tr[0].getElementsByTagName('th')[j] && tr[0].getElementsByTagName('th')[j].textContent.trim() === 'Name') {
-                        console.log(`Found API name in cell ${j}: ${tds[j].textContent.trim()}`);
                         apiName = tds[j].textContent.trim();
                         break;
                     }
                 }
-                if (systemFields.includes(apiName)) {
-                    tr[i].style.display = ignore ? 'none' : '';
-                }
-            }
-        }
-
-        function searchFields() {
-            let input = document.getElementById('searchInput');
-            let filter = input.value.toUpperCase();
-            let table = document.getElementById('fieldsTable');
-            let tr = table.getElementsByTagName('tr');
-            for (let i = 1; i < tr.length; i++) {
-                let visible = false;
-                const tds = tr[i].getElementsByTagName('td');
+                let isSystem = systemFields.includes(apiName);
+                let isCustom = apiName.endsWith('__c');
+                let isStandard = !isCustom;
+                // Checkbox logic
+                let checkboxShow = true;
+                if (ignore && isSystem) checkboxShow = false;
+                if (!showStandard && isStandard) checkboxShow = false;
+                if (!showCustom && isCustom) checkboxShow = false;
+                // Search logic
+                let searchShow = false;
                 for (let j = 0; j < tds.length; j++) {
                     if (tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
-                        visible = true;
+                        searchShow = true;
                         break;
                     }
                 }
-                tr[i].style.display = visible ? "" : "none";
+                tr[i].style.display = (checkboxShow && searchShow) ? '' : 'none';
             }
         }
 

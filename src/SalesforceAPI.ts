@@ -48,13 +48,29 @@ export class SalesforceAPI {
 
     @useCache('fields')
     public async fieldsOf(sObjectName: string) {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
         const fieldsInfo = await (await this.connection.describe(sObjectName)).fields;
         return fieldsInfo;
     }
 
+    /**
+     * Returns up to `limit` sObjects whose name or API name matches the input text.
+     * @param input Partial name or API name to match
+     * @param limit Max number of results
+     */
+    public async sObjectsMatchingName(input: string, limit: number = 20): Promise<Array<{ name: string, label: string }>> {
+        if (!this.connection) { throw new Error('Connection not initialized'); }
+        const result = await this.connection.describeGlobal();
+        const lowerInput = input.toLowerCase();
+        const matches = result.sobjects.filter((obj: any) =>
+            obj.name.toLowerCase().includes(lowerInput) ||
+            (obj.label && obj.label.toLowerCase().includes(lowerInput))
+        );
+        return matches.slice(0, limit).map((obj: any) => ({ name: obj.name, label: obj.label }));
+    }
+
     public async fetchRecords(queryString: string) {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
         const recordsInfo = await this.connection.query(queryString);
         return recordsInfo.records;
     }
@@ -67,7 +83,7 @@ export class SalesforceAPI {
 
     @useCache('orgDetails')
     public async orgDetails(orgName: string): Promise<any> {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
         const { stdout } = await SalesforceAPI.promisifiedExec('sf org display -o ' + orgName + ' --verbose --json');
         const jsonOutput = JSON.parse(stdout);
         if (jsonOutput.status === 0) {
@@ -88,7 +104,7 @@ export class SalesforceAPI {
     }
 
     public async debugLogsList(): Promise<any> {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
         let defaultQuery = `
             SELECT Id, Application, DurationMilliseconds, Location, LogLength, LogUser.Name, Operation, Request, StartTime, Status 
             FROM ApexLog 
@@ -104,7 +120,7 @@ export class SalesforceAPI {
     }
 
     public async debugLog(id: string): Promise<any> {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
         const baseUrl = this.connection.tooling._baseUrl();
         const url = `${baseUrl}/sobjects/ApexLog/${id}/Body`;
         const response = await this.connection.tooling.request(url);
@@ -116,7 +132,7 @@ export class SalesforceAPI {
     }
 
     public async getTraceFlags() {
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
 
         const baseUrl = this.connection.tooling._baseUrl();
         const query = `SELECT Id, TracedEntity.Name, TracedEntityId, LogType, DebugLevel.DeveloperName, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='USER_DEBUG'`;
@@ -129,7 +145,7 @@ export class SalesforceAPI {
     public async reactivateTraceFlag(traceFlagId: string): Promise<void> {
         console.log('Reactivate trace flag START' );
         
-        if (!this.connection) throw new Error('Connection not initialized');
+        if (!this.connection) { throw new Error('Connection not initialized'); }
 
         const baseUrl = this.connection.tooling._baseUrl();
         const url = `${baseUrl}/sobjects/TraceFlag/${traceFlagId}`;

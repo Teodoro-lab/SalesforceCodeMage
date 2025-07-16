@@ -5,14 +5,16 @@ export function fillHtmlContent(html: string, fields: any[], sObjectName: string
     let objectLink = '';
     let clippy = '';
     let sObjectJsonScript = '';
+    
+    clippy = `<i id="filterLogsButton" class="codicon codicon-clippy"></i>`;
+    const sObjectJson = JSON.stringify({ sObjectName, fields }, null, 2);
+    sObjectJsonScript = `<script>window.sObjectJson = ${JSON.stringify(sObjectJson)};</script>`;
+    
     if (instanceUrl) {
         console.log(`Instance URL: ${instanceUrl}`);
         objectLink = `<a href="${instanceUrl}/lightning/setup/ObjectManager/${sObjectName}/Details/view" target="_blank" title="Open in Salesforce Setup" style="margin-left:8px;">🧷</a>`;
-        clippy = `<i id="filterLogsButton" class="codicon codicon-clippy"></i>`;
-        // Inject the sObject JSON as a global variable for the clippy icon
-        const sObjectJson = JSON.stringify({ sObjectName, fields }, null, 2);
-        sObjectJsonScript = `<script>window.sObjectJson = ${JSON.stringify(sObjectJson)};</script>`;
     }
+    
     html = html.replace('${sObjectName}', sObjectName + objectLink + clippy);
     let filled = html.replace('<!-- Table headers and rows will be injected here -->', headers + rows);
     // Inject the JSON script before </body>

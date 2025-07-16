@@ -14,9 +14,6 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
     
     const salesforce = SalesforceAPI.getInstance();
-    
-
-    vscode.window.showInformationMessage('magicSF is activated!');
     const orgs = await SalesforceAPI.getOrgsInfo();
 
     let targetOrg: string;
@@ -30,21 +27,13 @@ export async function activate(context: vscode.ExtensionContext) {
     const username = orgs.find((org: any) => org.alias === targetOrg).username;
     const connection = await salesforce.connect(username);
 
-    const testCon = await SalesforceAPI.getConnection(username);
-    vscode.window.showInformationMessage('Conn url: ' + testCon.tooling.autoFetchQuery('SELECT Name from Account'));
-    
-    console.log('GETTING TRACE FLAGS');
-    
-    salesforce.getTraceFlags();
-
-
     const activateApexHover = vscode.workspace.getConfiguration('magicSF').get('activateApexHover');
     if (activateApexHover) {setupHoverApexProvider();}
     
     vscode.commands.registerCommand('magicSF.clearCache', clearCacheCmd);
     vscode.commands.registerCommand('magicSF.OpenFlowInOrg', openFlowInOrgCmd);
     vscode.commands.registerCommand('magicSF.openDeveloperConsole', () => {openDeveloperConsoleCmd(targetOrg);});
-    vscode.commands.registerCommand('magicSF.sObjectTable', (args) => {sObjectTableCmd(args, context);});
+    vscode.commands.registerCommand('magicSF.sObjectTable', (args) => {sObjectTableCmd(args, context, targetOrg);});
     vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {showObjectTableInputCmd(context, targetOrg);});
     vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context, targetOrg);});
     vscode.commands.registerCommand('magicSF.openDebugLogs', () => {openLogsWebViewCmd(context);});
@@ -115,12 +104,15 @@ async function openDeveloperConsoleCmd(targetOrg: any) {
  * @param context vscode.ExtensionContext
  * @param connection jsforce.Connection
  **/
-async function sObjectTableCmd(args: any, context: vscode.ExtensionContext) {
+async function sObjectTableCmd(args: any, context: vscode.ExtensionContext, targetOrg: string) {
     const { sObjectName } = args;
     const extPath = context.extensionPath;
     const salesforce = SalesforceAPI.getInstance();
     const fields = await salesforce.fieldsOf(sObjectName);
-    createSObjTableWebView(extPath, fields, sObjectName);
+    const org = await salesforce.orgDetails(targetOrg);
+    const instanceUrl = org.instanceUrl;
+    
+    createSObjTableWebView(extPath, fields, sObjectName, instanceUrl, context);
 }
 
 async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext, targetOrg: string) {
@@ -139,12 +131,40 @@ async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext, t
 
 async function showObjectTableInputCmd(context: vscode.ExtensionContext, targetOrg: string) {
     vscode.window.showInformationMessage('Getting details for the sObject...');
-    const sObjectName : string = await vscode.window.showInputBox({
-        placeHolder: 'Enter the sObject name to get the details',
-    }) || '';
+    // Prompt for input, then show quick pick for suggestions
+    const input = await vscode.window.showInputBox({
+        placeHolder: 'Type at least 2 characters of the sObject name or API name',
+    });
+    if (!input || input.length < 2) {
+        vscode.window.showErrorMessage('Please enter at least 2 characters.');
+        return;
+    }
     const salesforce = SalesforceAPI.getInstance();
+    // Fetch all sObject names matching the input (limit to 20)
+    let sObjects: Array<{ label: string; description: string; value: string }> = [];
+    try {
+        const allObjects = await salesforce.sObjectsMatchingName(input, 20);
+        sObjects = allObjects.map((obj: any) => ({
+            label: obj.label || obj.name,
+            description: obj.name,
+            value: obj.name
+        }));
+    } catch (err: any) {
+        vscode.window.showErrorMessage('Error fetching sObject list: ' + (err && err.message ? err.message : String(err)));
+        return;
+    }
+    if (sObjects.length === 0) {
+        vscode.window.showErrorMessage('No matching sObjects found.');
+        return;
+    }
+    const picked = await vscode.window.showQuickPick(sObjects, {
+        placeHolder: 'Select an sObject',
+        matchOnDescription: true,
+    });
+    if (!picked) { return; }
+    const sObjectName = picked.value;
     const fields = await salesforce.fieldsOf(sObjectName);
-    const org = await salesforce.orgDetails(sObjectName);
+    const org = await salesforce.orgDetails(targetOrg);
     const instanceUrl = org.instanceUrl;
     showSObjTable(context, sObjectName, fields, instanceUrl);
 }

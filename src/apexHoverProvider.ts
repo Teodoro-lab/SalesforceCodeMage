@@ -33,19 +33,9 @@ function formatFieldDetails(field: any): string {
 function createHoverContent(fields: any[], word: string): vscode.Hover {
     const markdownString = new vscode.MarkdownString();
     markdownString.isTrusted = true;
-
-    if (fields && fields.length > 0) {
-        const commandUri = generateCommandUri(word);
-        markdownString.appendMarkdown(`## Field details for ${escapeMarkdown(word)}\n`);
-        markdownString.appendMarkdown(`[View Detailed Information](${commandUri})\n\n`);
-
-        fields.forEach((field) => {
-            markdownString.appendMarkdown(formatFieldDetails(field));
-        });
-    } else {
-        markdownString.appendMarkdown('\nNo information available');
-    }
-
+    const commandUri = generateCommandUri(word);
+    markdownString.appendMarkdown(`## Field details for ${escapeMarkdown(word)}\n`);
+    markdownString.appendMarkdown(`[View Detailed Information](${commandUri})`);
     return new vscode.Hover(markdownString);
 }
 
