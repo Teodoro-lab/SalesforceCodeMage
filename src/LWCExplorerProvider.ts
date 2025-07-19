@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 
-export class LWCExplorerProvider implements vscode.TreeDataProvider<LWCFile> {
+export class LwcExplorerProvider implements vscode.TreeDataProvider<LWCFile> {
     private _onDidChangeTreeData: vscode.EventEmitter<LWCFile | undefined | null > = 
             new vscode.EventEmitter<LWCFile | undefined | null>();
             

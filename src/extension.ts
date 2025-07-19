@@ -2,13 +2,14 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { findWorkspaceTargetOrg } from './salesforceUtils';
 
-import { SalesforceAPI } from './SalesforceAPI';
-import { setupHoverApexProvider } from './apexHoverProvider';
+import { SalesforceAPI } from './salesforceAPI';
+import { setupHoverApexProvider } from './hoverProvider';
 import { clearCache } from './cache';
-import { openLogsWebViewCmd, deleteDebugLogsCmd } from './logHandling/LogsCommands';
-import { createSObjTableWebView, showSObjTable } from './sObjectsTables/sObjectsHandling';
-import { LWCExplorerProvider } from './LWCExplorerProvider';
-import { openTraceFlagsWebViewCmd } from './sfTraceFlags/traceflags';
+import { openLogsWebViewCmd, deleteDebugLogsCmd } from './logHandling/logsCommands';
+import { showSObjTable } from './objectTables/sObjectTable';
+import { createSObjTableWebView } from './objectTables/sObjectTable';
+import { LwcExplorerProvider } from './lwcExplorerProvider';
+import { openTraceFlagsWebViewCmd } from './traceFlags/traceFlags';
 
 export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
@@ -25,21 +26,19 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     
     const username = orgs.find((org: any) => org.alias === targetOrg).username;
-    const connection = await salesforce.connect(username);
+    await salesforce.connect(username);
 
-    const activateApexHover = vscode.workspace.getConfiguration('magicSF').get('activateApexHover');
-    if (activateApexHover) {setupHoverApexProvider();}
-    
+    setupHoverApexProvider();
     vscode.commands.registerCommand('magicSF.clearCache', clearCacheCmd);
     vscode.commands.registerCommand('magicSF.OpenFlowInOrg', openFlowInOrgCmd);
     vscode.commands.registerCommand('magicSF.openDeveloperConsole', () => {openDeveloperConsoleCmd(targetOrg);});
     vscode.commands.registerCommand('magicSF.sObjectTable', (args) => {sObjectTableCmd(args, context, targetOrg);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {showObjectTableInputCmd(context, targetOrg);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context, targetOrg);});
+    vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {objectTable_InputCommand(context, targetOrg);});
+    vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {objectTable_SelectedTextCommand(context, targetOrg);});
     vscode.commands.registerCommand('magicSF.openDebugLogs', () => {openLogsWebViewCmd(context);});
     vscode.commands.registerCommand('magicSF.deleteDebugLogs', deleteDebugLogsCmd);
 
-    const lwcExplorerProvider = new LWCExplorerProvider();
+    const lwcExplorerProvider = new LwcExplorerProvider();
     vscode.window.registerTreeDataProvider('lwcExplorer', lwcExplorerProvider);
     vscode.commands.registerCommand('magicSF.refresh', () => lwcExplorerProvider.refresh());
 
@@ -52,10 +51,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 async function switchLwcTabsCmd(resourceUri: vscode.Uri) {
     const previousEditor = vscode.window.activeTextEditor;
-
     await vscode.commands.executeCommand('vscode.open', resourceUri);
-
-    // Check configuration and close the previously active editor if enabled
     const closePreviousEditor = vscode.workspace.getConfiguration('magicSF').get('closePreviousEditorOnOpen', false);
     if (closePreviousEditor && previousEditor && previousEditor.document.uri.toString() !== resourceUri.toString()) {
         await closeEditor(previousEditor);
@@ -115,7 +111,7 @@ async function sObjectTableCmd(args: any, context: vscode.ExtensionContext, targ
     createSObjTableWebView(extPath, fields, sObjectName, instanceUrl, context);
 }
 
-async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext, targetOrg: string) {
+async function objectTable_SelectedTextCommand(context: vscode.ExtensionContext, targetOrg: string) {
     vscode.window.showInformationMessage('Getting details for the selected sObject...');
     const editor = vscode.window.activeTextEditor;
     if (editor) {
@@ -129,7 +125,7 @@ async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext, t
     }
 }
 
-async function showObjectTableInputCmd(context: vscode.ExtensionContext, targetOrg: string) {
+async function objectTable_InputCommand(context: vscode.ExtensionContext, targetOrg: string) {
     vscode.window.showInformationMessage('Getting details for the sObject...');
     // Prompt for input, then show quick pick for suggestions
     const input = await vscode.window.showInputBox({

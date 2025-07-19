@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { SalesforceAPI } from '../SalesforceAPI';
+import { SalesforceAPI } from '../salesforceAPI';
 
 /**
  * Initialize and display the web view panel for trace flags.
@@ -48,7 +48,7 @@ function createWebviewPanel(): vscode.WebviewPanel {
  * Read and return the HTML template content.
  */
 function getHtmlTemplate(extPath: string): string {
-    const htmlPath = path.normalize(path.join(extPath, 'webviewTemplates/traceFlags.html'));
+    const htmlPath = path.normalize(path.join(extPath, 'src/traceFlags/traceFlags.html'));
     return fs.readFileSync(htmlPath, 'utf-8');
 }
 

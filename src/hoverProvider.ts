@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SalesforceAPI } from './SalesforceAPI';
+import { SalesforceAPI } from './salesforceAPI';
 
 function escapeMarkdown(text: string): string {
     return text.replace(/([\\`*_{}[\]()#+\-.!])/g, '\\$1');
