@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Details</title>
+    <link href="${codiconsUri}" rel="stylesheet" />
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--vscode-editorGroup-border);
+        }
+        
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-editorGroup-border);
+        }
+        
+        th {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+        }
+        
+        .required {
+            color: var(--vscode-errorForeground);
+        }
+        
+        .sortable {
+            cursor: pointer;
+        }
+        
+        .sortable:after {
+            content: " ↕";
+            color: var(--vscode-editor-inactiveSelectionBackground);
+        }
+        
+        .search-input {
+            margin-bottom: 10px;
+            width: 20%;
+            padding: 8px;
+            border: 1px solid var(--vscode-input-border);
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+        }
+        
+        .control-panel {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .filter-controls {
+            margin-left: auto;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+        
+        .expandable {
+            display: block;
+            cursor: pointer;
+        }
+        
+        .expandable-content {
+            display: none;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .clipboard-notification {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            background: var(--vscode-editorWidget-background, #333);
+            color: var(--vscode-editorWidget-foreground, #fff);
+            padding: 8px 16px;
+            border-radius: 6px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.7s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fields of ${sObjectName}</h1>
+    
+    <div class="control-panel">
+        <input type="text" 
+               id="searchInput" 
+               class="search-input"
+               placeholder="Search for fields..." 
+               style="margin-right: 15px;">
+        
+        <div class="filter-controls">
+            <label>
+                <input type="checkbox" id="hideSystemFields" checked> Ignore system fields
+            </label>
+            <label>
+                <input type="checkbox" id="showStandardFields" checked> Show standard fields
+            </label>
+            <label>
+                <input type="checkbox" id="showCustomFields" checked> Show custom fields
+            </label>
+        </div>
+    </div>
+    
+    <div id="clipboardNotification" class="clipboard-notification">
+        Copied to clipboard
+    </div>
+    
+    <table id="fieldsTable">
+        <!-- Table headers and rows will be injected here -->
+    </table>
+
+    <script>
+        /**
+         * Configuration and constants
+         */
+        const SYSTEM_FIELDS = [
+            'Id', 'IsDeleted', 'LastReferencedDate', 'LastViewedDate',
+            'CreatedById', 'CreatedDate', 'LastModifiedById', 'LastModifiedDate',
+            'SystemModstamp', 'LastActivityDate', 'OwnerId'
+        ];
+
+        const ANIMATION_TIMING = {
+            FADE_OUT_DELAY: 1200,
+            HIDE_DELAY: 2000
+        };
+
+        const UI_ELEMENTS = {
+            searchInput: () => document.getElementById('searchInput'),
+            fieldsTable: () => document.getElementById('fieldsTable'),
+            hideSystemFields: () => document.getElementById('hideSystemFields'),
+            showStandardFields: () => document.getElementById('showStandardFields'),
+            showCustomFields: () => document.getElementById('showCustomFields'),
+            clipboardNotification: () => document.getElementById('clipboardNotification')
+        };
+
+        /**
+         * Clipboard functionality for copying sObject JSON
+         */
+        function initializeClipboardFeature() {
+            const clipboardButton = document.getElementById('filterLogsButton');
+            
+            if (clipboardButton) {
+                clipboardButton.style.cursor = 'pointer';
+                clipboardButton.title = 'Copy object JSON to clipboard';
+                clipboardButton.addEventListener('click', handleClipboardCopy);
+            }
+        }
+
+        function handleClipboardCopy() {
+            if (!window.sObjectJson) {
+                showNotification('No object JSON found');
+                return;
+            }
+
+            navigator.clipboard.writeText(window.sObjectJson)
+                .then(() => showNotification())
+                .catch(() => showNotification('Failed to copy JSON'));
+        }
+
+        function showNotification(message = 'Copied to clipboard') {
+            const notification = UI_ELEMENTS.clipboardNotification();
+            notification.textContent = message;
+            notification.style.display = 'block';
+            notification.style.opacity = '1';
+
+            setTimeout(() => notification.style.opacity = '0', ANIMATION_TIMING.FADE_OUT_DELAY);
+            setTimeout(() => notification.style.display = 'none', ANIMATION_TIMING.HIDE_DELAY);
+        }
+
+        /**
+         * Field filtering logic
+         */
+        function filterFields() {
+            const filterOptions = getFilterOptions();
+            const searchTerm = filterOptions.searchTerm.toUpperCase();
+            const tableRows = getTableRows();
+
+            tableRows.forEach(row => {
+                const fieldName = extractFieldName(row);
+                const fieldType = categorizeField(fieldName);
+                
+                const shouldShow = shouldShowField(fieldType, filterOptions) && 
+                                 matchesSearchTerm(row, searchTerm);
+                
+                row.style.display = shouldShow ? '' : 'none';
+            });
+        }
+
+        function getFilterOptions() {
+            return {
+                hideSystemFields: UI_ELEMENTS.hideSystemFields().checked,
+                showStandardFields: UI_ELEMENTS.showStandardFields().checked,
+                showCustomFields: UI_ELEMENTS.showCustomFields().checked,
+                searchTerm: UI_ELEMENTS.searchInput().value
+            };
+        }
+
+        function getTableRows() {
+            const table = UI_ELEMENTS.fieldsTable();
+            return Array.from(table.getElementsByTagName('tr')).slice(1);
+        }
+
+        function extractFieldName(row) {
+            const cells = row.getElementsByTagName('td');
+            const headers = UI_ELEMENTS.fieldsTable().getElementsByTagName('th');
+            
+            for (let i = 0; i < headers.length; i++) {
+                if (headers[i].textContent.trim() === 'Name') {
+                    return cells[i]?.textContent.trim() || '';
+                }
+            }
+            return '';
+        }
+
+        function categorizeField(fieldName) {
+            return {
+                isSystem: SYSTEM_FIELDS.includes(fieldName),
+                isCustom: fieldName.endsWith('__c'),
+                isStandard: !fieldName.endsWith('__c')
+            };
+        }
+
+        function shouldShowField(fieldType, options) {
+            if (options.hideSystemFields && fieldType.isSystem) return false;
+            if (!options.showStandardFields && fieldType.isStandard) return false;
+            if (!options.showCustomFields && fieldType.isCustom) return false;
+            return true;
+        }
+
+        function matchesSearchTerm(row, searchTerm) {
+            if (!searchTerm) return true;
+            
+            const cells = row.getElementsByTagName('td');
+            return Array.from(cells).some(cell => 
+                cell.textContent.toUpperCase().includes(searchTerm)
+            );
+        }
+
+        /**
+         * Table sorting functionality
+         */
+        function sortTable(columnIndex) {
+            const table = UI_ELEMENTS.fieldsTable();
+            const rows = Array.from(table.rows).slice(1);
+            
+            const sortedRows = rows.sort((rowA, rowB) => {
+                const cellA = rowA.getElementsByTagName('TD')[columnIndex];
+                const cellB = rowB.getElementsByTagName('TD')[columnIndex];
+                
+                return cellA.textContent.toLowerCase()
+                    .localeCompare(cellB.textContent.toLowerCase());
+            });
+
+            sortedRows.forEach(row => table.appendChild(row));
+        }
+
+        /**
+         * Expandable content functionality for picklist values
+         */
+        function initializeExpandableContent() {
+            const expandableElements = document.querySelectorAll('.expandable');
+            const expandedElements = document.querySelectorAll('.expandable-content');
+
+            expandableElements.forEach(element => {
+                element.addEventListener('dblclick', handleExpandToggle);
+            });
+
+            expandedElements.forEach(element => {
+                element.addEventListener('dblclick', handleCollapseToggle);
+            });
+        }
+
+        function handleExpandToggle(event) {
+            const content = this.nextElementSibling;
+            const isExpanded = content.style.display === 'block';
+            
+            content.style.display = isExpanded ? 'none' : 'block';
+            this.style.display = isExpanded ? 'block' : 'none';
+        }
+
+        function handleCollapseToggle() {
+            this.style.display = 'none';
+            this.previousElementSibling.style.display = 'block';
+        }
+
+        /**
+         * Event listeners and initialization
+         */
+        function initializeEventListeners() {
+            UI_ELEMENTS.searchInput().addEventListener('input', filterFields);
+            UI_ELEMENTS.hideSystemFields().addEventListener('change', filterFields);
+            UI_ELEMENTS.showStandardFields().addEventListener('change', filterFields);
+            UI_ELEMENTS.showCustomFields().addEventListener('change', filterFields);
+        }
+
+        function initialize() {
+            filterFields();
+            initializeEventListeners();
+            initializeExpandableContent();
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initialize);
+        window.addEventListener('DOMContentLoaded', initializeClipboardFeature);
+    </script>
+</body>
+</html>

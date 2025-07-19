@@ -1,3 +1,7 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import * as vscode from 'vscode';
+
 export function fillHtmlContent(html: string, fields: any[], sObjectName: string, instanceUrl?: string): string {
     const headers = generateTableHeaders();
     const rows = generateTableRows(fields, sObjectName, instanceUrl);
@@ -25,6 +29,7 @@ export function fillHtmlContent(html: string, fields: any[], sObjectName: string
 function generateTableHeaders(): string {
     return `
         <tr>
+            <th></th>
             <th class="sortable" onclick="sortTable(0)">Label</th>
             <th class="sortable" onclick="sortTable(1)">Name</th>
             <th class="sortable" onclick="sortTable(2)">Type</th>
@@ -64,8 +69,12 @@ function generateTableRow(field: any, sObjectName: string, instanceUrl?: string)
         fieldLink = `<a href="${instanceUrl}/lightning/setup/ObjectManager/${sObjectName}/FieldsAndRelationships/${field.name}/view" target="_blank" title="Open field in Salesforce Setup" style="margin-left:4px;">🧷</a>`;
     }
 
+    // Add a checkbox for field selection
+    const checkbox = `<input type="checkbox" class="field-checkbox" data-field="${field.name}">`;
+
     return `
         <tr class="field-row">
+            <td>${checkbox}</td>
             <td>${field.label} ${fieldLink}</td>
             <td>${field.name}</td>
             <td>${field.type}</td>
@@ -84,3 +93,51 @@ function generatePicklistValues(field: any): string {
     }
     return 'N/A';
 }
+/**
+ * Create the table web view for the sObject based on the fields using the html template file.
+ * @param extPath string
+ * @param fields any[]
+ * @param sObjectName string
+ **/
+
+
+export async function createSObjTableWebView(extPath: string, fields: any[], sObjectName: string, instanceUrl?: string, context?: vscode.ExtensionContext) {
+    const panel = vscode.window.createWebviewPanel(
+        'objFields',
+        sObjectName + ' Fields',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            enableCommandUris: true,
+            retainContextWhenHidden: true,
+        }
+    );
+    let codiconsUri;
+    if (context) {
+        console.log(`Context provided, using codicons URI.`);
+        codiconsUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'));
+    }
+
+    const htmlPath = path.normalize(path.join(extPath, 'src/objectTables/objectTable.html'));
+    let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+    htmlContent = htmlContent.replace('${codiconsUri}', codiconsUri ? codiconsUri.toString() : '');
+    const filledHtml = fillHtmlContent(htmlContent, fields, sObjectName, instanceUrl);
+    panel.webview.html = filledHtml;
+}
+
+/**
+ * Show the sObject table in a webview
+ * @param context vscode.ExtensionContext
+ * @param connection jsforce.Connection
+ * @param sObjectName string @example 'Account'
+ **/
+
+export async function showSObjTable(context: vscode.ExtensionContext, sObjectName: string, fields: any[], instanceUrl?: string) {
+    if (sObjectName) {
+        const extPath = context.extensionPath;
+        createSObjTableWebView(extPath, fields, sObjectName, instanceUrl, context);
+    } else {
+        vscode.window.showInformationMessage('You did not enter anything');
+    }
+}
+
