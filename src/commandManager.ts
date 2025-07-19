@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { SalesforceAPI } from './salesforceAPI';
 import { clearCache } from './cache';
-import { openLogsWebViewCmd, deleteDebugLogsCmd } from './logHandling/logsCommands';
+import { openLogsWebViewCmd, deleteDebugLogsCmd } from './debugLogsSf/debugLogs';
 import { createObjectTable } from './objectTables/objectTable';
 import { openTraceFlagsWebViewCmd } from './traceFlags/traceFlags';
 
