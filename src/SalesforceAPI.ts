@@ -4,12 +4,15 @@ import * as sfcore from '@salesforce/core';
 import * as child_process from 'child_process';
 import * as util from 'util';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { useCache } from './cache';
 import * as timezone from 'moment-timezone';
 
 export class SalesforceAPI {
     private static instance: SalesforceAPI;
     private connection: sfcore.Connection | null = null;
+    private currentTargetOrg: string | null = null;
     private static readonly promisifiedExec = util.promisify(child_process.exec);
     
     private constructor() {}
@@ -21,10 +24,94 @@ export class SalesforceAPI {
         return SalesforceAPI.instance;
     }
 
-    public async connect(username: string) {
-        this.connection = await sfcore.Connection.create({
-            authInfo: await sfcore.AuthInfo.create({ username })
-        });
+    /**
+     * Finds the target org from workspace configuration
+     */
+    private findWorkspaceTargetOrg(): string {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace is open.');
+        }
+
+        const configPath = path.normalize(path.join(workspaceFolders[0].uri.fsPath, '.sf', 'config.json'));
+        if (!fs.existsSync(configPath)) {
+            throw new Error('No config file found. Please check if the config file exists in the .sf in the root directory.');
+        }
+
+        const data = fs.readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(data.toString());
+        const configTargetOrg = config['target-org'];
+
+        if (!configTargetOrg) {
+            throw new Error('No target org found in config file. Please check if the target-org is present in the config file.');
+        }
+
+        return configTargetOrg;
+    }
+
+    /**
+     * Ensures connection is available and up-to-date with current target org
+     */
+    private async ensureConnection(): Promise<void> {
+        try {
+            const targetOrg = this.findWorkspaceTargetOrg();
+            
+            // Create new connection if none exists or target org has changed
+            if (!this.connection || this.currentTargetOrg !== targetOrg) {
+                await this.connect(targetOrg);
+            }
+        } catch (error) {
+            throw new Error(`Failed to establish connection: ${error}`);
+        }
+    }
+
+    /**
+     * Connects to Salesforce using the specified username
+     */
+    public async connect(username: string): Promise<void> {
+        try {
+            this.connection = await sfcore.Connection.create({
+                authInfo: await sfcore.AuthInfo.create({ username })
+            });
+            this.currentTargetOrg = username;
+            vscode.window.showInformationMessage(`Connected to Salesforce org: ${username}`);
+        } catch (error) {
+            this.connection = null;
+            this.currentTargetOrg = null;
+            throw new Error(`Failed to connect to org '${username}': ${error}`);
+        }
+    }
+
+    /**
+     * Forces a connection refresh, useful when target org changes
+     */
+    public async refreshConnection(): Promise<void> {
+        this.connection = null;
+        this.currentTargetOrg = null;
+        await this.ensureConnection();
+    }
+
+    /**
+     * Gets current connection, ensuring it's valid for the current target org
+     */
+    public async getConnection(): Promise<sfcore.Connection> {
+        await this.ensureConnection();
+        if (!this.connection) {
+            throw new Error('Failed to establish Salesforce connection');
+        }
+        return this.connection;
+    }
+
+    /**
+     * Checks if connection is active for the current target org
+     */
+    public isConnected(): boolean {
+        try {
+            const targetOrg = this.findWorkspaceTargetOrg();
+            return this.connection !== null && this.currentTargetOrg === targetOrg;
+        } catch {
+            return false;
+        }
     }
 
     public static async getOrgsInfo(): Promise<any> {
@@ -39,15 +126,16 @@ export class SalesforceAPI {
         }
     }
 
-    public static async getConnection(username: string) : Promise<sfcore.Connection>{
+    public static async getConnection(username: string): Promise<sfcore.Connection> {
         const connection = await sfcore.Connection.create({
-            authInfo: await sfcore.AuthInfo.create({ username:  username})
+            authInfo: await sfcore.AuthInfo.create({ username: username })
         });
-        return connection; 
+        return connection;
     }
 
     @useCache('fields')
     public async fieldsOf(sObjectName: string) {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const fieldsInfo = await (await this.connection.describe(sObjectName)).fields;
         return fieldsInfo;
@@ -59,6 +147,7 @@ export class SalesforceAPI {
      * @param limit Max number of results
      */
     public async sObjectsMatchingName(input: string, limit: number = 20): Promise<Array<{ name: string, label: string }>> {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const result = await this.connection.describeGlobal();
         const lowerInput = input.toLowerCase();
@@ -70,6 +159,7 @@ export class SalesforceAPI {
     }
 
     public async fetchRecords(queryString: string) {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const recordsInfo = await this.connection.query(queryString);
         return recordsInfo.records;
@@ -81,8 +171,24 @@ export class SalesforceAPI {
         vscode.window.showInformationMessage(`Connection initialized for username: ${userName}`);
     }
 
+    /**
+     * Opens connection using the current workspace target org
+     */
+    public static async openWorkspaceConnection() {
+        const api = SalesforceAPI.getInstance();
+        try {
+            const targetOrg = api.findWorkspaceTargetOrg();
+            await api.connect(targetOrg);
+            vscode.window.showInformationMessage(`Connection initialized for workspace target org: ${targetOrg}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to connect to workspace target org: ${error}`);
+            throw error;
+        }
+    }
+
     @useCache('orgDetails')
     public async orgDetails(orgName: string): Promise<any> {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const { stdout } = await SalesforceAPI.promisifiedExec('sf org display -o ' + orgName + ' --verbose --json');
         const jsonOutput = JSON.parse(stdout);
@@ -98,12 +204,13 @@ export class SalesforceAPI {
         try {
             vscode.window.showInformationMessage(`Opening flow in org...`);
             await this.promisifiedExec('sf org open --source-file ' + filePath);
-        } catch (error : any) {
+        } catch (error: any) {
             vscode.window.showErrorMessage(error.message, { modal: false });
         }
     }
 
     public async debugLogsList(): Promise<any> {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         let defaultQuery = `
             SELECT Id, Application, DurationMilliseconds, Location, LogLength, LogUser.Name, Operation, Request, StartTime, Status 
@@ -111,7 +218,7 @@ export class SalesforceAPI {
             ORDER BY StartTime 
             DESC LIMIT 100
         `;
-        let apexLogQuery : string = vscode.workspace.getConfiguration('magicSF').get('apexLogQuery') || defaultQuery;
+        let apexLogQuery: string = vscode.workspace.getConfiguration('magicSF').get('apexLogQuery') || defaultQuery;
         let debugLogs = await this.fetchRecords(apexLogQuery);
         debugLogs.forEach((log: any) => {
             log.StartTime = SalesforceAPI.formatLogDate(log.StartTime);
@@ -120,6 +227,7 @@ export class SalesforceAPI {
     }
 
     public async debugLog(id: string): Promise<any> {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const baseUrl = this.connection.tooling._baseUrl();
         const url = `${baseUrl}/sobjects/ApexLog/${id}/Body`;
@@ -132,6 +240,7 @@ export class SalesforceAPI {
     }
 
     public async getTraceFlags() {
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
 
         const baseUrl = this.connection.tooling._baseUrl();
@@ -143,8 +252,7 @@ export class SalesforceAPI {
     }
 
     public async reactivateTraceFlag(traceFlagId: string): Promise<void> {
-        console.log('Reactivate trace flag START' );
-        
+        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
 
         const baseUrl = this.connection.tooling._baseUrl();
@@ -153,33 +261,27 @@ export class SalesforceAPI {
             StartDate: new Date().toISOString(),
             ExpirationDate: new Date(Date.now() + 120 * 60 * 1000).toISOString(), // 120 minutes from now
         };
-        console.log('Reactivate trace flag URL: ', url);
-        console.log('Reactivate trace flag Payload: ', payload);
-        /**}
-         * REQUEST IS OF THIS FORM
-         * 
-         *         const request = {
-            method: 'POST',
-            url,
-            body: JSON.stringify(body),
-            headers: { 'content-type': 'application/json' },
-        };
-         */
+
         try {
-            let response = await this.connection.request(
-                {
-                    method: 'PATCH',
-                    url,
-                    body: JSON.stringify(payload),
-                    headers: { 'content-type': 'application/json' },
-                }
-            );
-            // const response = await this.connection.tooling.request(url, { method: 'PATCH', body: JSON.stringify(payload) } as any);
-            console.log('Reactivate trace flag response: ', response);
+            let response = await this.connection.request({
+                method: 'PATCH',
+                url,
+                body: JSON.stringify(payload),
+                headers: { 'content-type': 'application/json' },
+            });
         } catch (error) {
             console.error('Error reactivating trace flag: ', error);
         }
-        console.log('Reactivate trace flag END');
     }
 
+    /**
+     * Utility method to get current target org without throwing errors
+     */
+    public getCurrentTargetOrg(): string | null {
+        try {
+            return this.findWorkspaceTargetOrg();
+        } catch {
+            return null;
+        }
+    }
 }

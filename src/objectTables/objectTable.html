@@ -93,7 +93,7 @@
     </style>
 </head>
 <body>
-    <h1>Fields of ${sObjectName}</h1>
+    <h1 id="objectTitle">Loading...</h1>
     
     <div class="control-panel">
         <input type="text" 
@@ -125,6 +125,11 @@
 
     <script>
         /**
+         * Global state management
+         */
+        let sObjectData = null;
+        
+        /**
          * Configuration and constants
          */
         const SYSTEM_FIELDS = [
@@ -148,27 +153,170 @@
         };
 
         /**
-         * Clipboard functionality for copying sObject JSON
+         * VSCode API integration
          */
-        function initializeClipboardFeature() {
-            const clipboardButton = document.getElementById('filterLogsButton');
-            
-            if (clipboardButton) {
-                clipboardButton.style.cursor = 'pointer';
-                clipboardButton.title = 'Copy object JSON to clipboard';
-                clipboardButton.addEventListener('click', handleClipboardCopy);
+        const vscode = acquireVsCodeApi();
+
+        /**
+         * Message handling from VSCode extension
+         */
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            handleExtensionMessage(message);
+        });
+
+        function handleExtensionMessage(message) {
+            switch (message.command) {
+                case 'initializeData':
+                    initializeWithData(message.data);
+                    break;
+                default:
+                    console.warn('Unknown message command:', message.command);
             }
         }
 
-        function handleClipboardCopy() {
-            if (!window.sObjectJson) {
-                showNotification('No object JSON found');
+        function initializeWithData(data) {
+            sObjectData = data;
+            updateTitle(data.sObjectName, data.instanceUrl);
+            generateTableContent(data.fields, data.sObjectName, data.instanceUrl);
+            initialize();
+        }
+
+        /**
+         * UI Content Generation
+         */
+        function updateTitle(sObjectName, instanceUrl) {
+            const titleElement = document.getElementById('objectTitle');
+            let titleContent = `Fields of ${sObjectName}`;
+            
+            // Add Salesforce link if instanceUrl is available
+            if (instanceUrl) {
+                titleContent += ` <a href="#" onclick="openObjectInSalesforce('${instanceUrl}', '${sObjectName}')" title="Open in Salesforce Setup" style="margin-left:8px;">🧷</a>`;
+            }
+            
+            // Add clipboard button
+            titleContent += ` <i id="clipboardButton" class="codicon codicon-clippy" onclick="copyObjectToClipboard()" title="Copy object JSON to clipboard" style="cursor: pointer; margin-left: 8px;"></i>`;
+            
+            titleElement.innerHTML = titleContent;
+        }
+
+        function generateTableContent(fields, sObjectName, instanceUrl) {
+            const table = UI_ELEMENTS.fieldsTable();
+            table.innerHTML = generateTableHeaders() + generateTableRows(fields, sObjectName, instanceUrl);
+        }
+
+        function generateTableHeaders() {
+            return `
+                <tr>
+                    <th></th>
+                    <th class="sortable" onclick="sortTable(1)">Label</th>
+                    <th class="sortable" onclick="sortTable(2)">Name</th>
+                    <th class="sortable" onclick="sortTable(3)">Type</th>
+                    <th>Length</th>
+                    <th>Required</th>
+                    <th>Picklist Values</th>
+                    <th>Createable</th>
+                    <th>Defaulted on Create</th>
+                </tr>
+            `;
+        }
+
+        function generateTableRows(fields, sObjectName, instanceUrl) {
+            return fields.map(field => generateTableRow(field, sObjectName, instanceUrl)).join('');
+        }
+
+        function generateTableRow(field, sObjectName, instanceUrl) {
+            const picklistValues = generatePicklistValues(field);
+            let picklistHTML = generatePicklistHTML(picklistValues);
+            
+            const requiredDisplay = field.nillable ? 'Optional' : 'Required';
+            const requiredClass = field.nillable ? '' : 'required';
+            
+            // Generate field link if instanceUrl is available
+            let fieldLink = '';
+            if (instanceUrl) {
+                fieldLink = ` <a href="#" onclick="openFieldInSalesforce('${instanceUrl}', '${sObjectName}', '${field.name}')" title="Open field in Salesforce Setup" style="margin-left:4px;">🧷</a>`;
+            }
+            
+            // Add checkbox for field selection
+            const checkbox = `<input type="checkbox" class="field-checkbox" data-field="${field.name}">`;
+            
+            return `
+                <tr class="field-row">
+                    <td>${checkbox}</td>
+                    <td>${field.label}${fieldLink}</td>
+                    <td>${field.name}</td>
+                    <td>${field.type}</td>
+                    <td>${field.length || 'N/A'}</td>
+                    <td class="${requiredClass}">${requiredDisplay}</td>
+                    ${picklistHTML}
+                    <td>${field.createable ? 'Yes' : 'No'}</td>
+                    <td>${field.defaultedOnCreate ? 'Yes' : 'No'}</td>
+                </tr>
+            `;
+        }
+
+        function generatePicklistValues(field) {
+            if (field.type === 'picklist' && field.picklistValues && field.picklistValues.length > 0) {
+                return field.picklistValues.map(val => `${val.label} (${val.value})`).join('<br>');
+            }
+            return 'N/A';
+        }
+
+        function generatePicklistHTML(picklistValues) {
+            if (picklistValues.length > 50) {
+                const picklistValuesShort = picklistValues.substring(0, 50) + '...';
+                return `
+                    <td class="expandable">${picklistValuesShort}</td>
+                    <td class="expandable-content">${picklistValues}</td>
+                `;
+            } else {
+                return `<td>${picklistValues}</td>`;
+            }
+        }
+
+        /**
+         * VSCode communication functions
+         */
+        function copyObjectToClipboard() {
+            if (!sObjectData) {
+                showNotification('No object data available');
                 return;
             }
+            
+            vscode.postMessage({
+                command: 'copyToClipboard',
+                data: sObjectData
+            });
+            
+            showNotification('Copied to clipboard');
+        }
 
-            navigator.clipboard.writeText(window.sObjectJson)
-                .then(() => showNotification())
-                .catch(() => showNotification('Failed to copy JSON'));
+        function openFieldInSalesforce(instanceUrl, sObjectName, fieldName) {
+            vscode.postMessage({
+                command: 'openFieldInSalesforce',
+                data: { instanceUrl, sObjectName, fieldName }
+            });
+        }
+
+        function openObjectInSalesforce(instanceUrl, sObjectName) {
+            vscode.postMessage({
+                command: 'openObjectInSalesforce',
+                data: { instanceUrl, sObjectName }
+            });
+        }
+
+        /**
+         * Clipboard functionality for copying sObject JSON
+         */
+        function initializeClipboardFeature() {
+            // Clipboard functionality is now handled through VSCode messaging
+            // This function is kept for compatibility but may be removed in future versions
+        }
+
+        function handleClipboardCopy() {
+            // Legacy function - now handled through VSCode messaging
+            copyObjectToClipboard();
         }
 
         function showNotification(message = 'Copied to clipboard') {
@@ -301,21 +449,30 @@
          * Event listeners and initialization
          */
         function initializeEventListeners() {
-            UI_ELEMENTS.searchInput().addEventListener('input', filterFields);
+            const searchInput = UI_ELEMENTS.searchInput();
+            if (searchInput) {
+                searchInput.addEventListener('input', filterFields);
+            }
+            
             UI_ELEMENTS.hideSystemFields().addEventListener('change', filterFields);
             UI_ELEMENTS.showStandardFields().addEventListener('change', filterFields);
             UI_ELEMENTS.showCustomFields().addEventListener('change', filterFields);
         }
 
         function initialize() {
-            filterFields();
-            initializeEventListeners();
-            initializeExpandableContent();
+            // Only initialize if we have data
+            if (sObjectData && sObjectData.fields) {
+                filterFields();
+                initializeEventListeners();
+                initializeExpandableContent();
+            }
         }
 
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', initialize);
-        window.addEventListener('DOMContentLoaded', initializeClipboardFeature);
+        // Notify extension that webview is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            vscode.postMessage({ command: 'webviewReady' });
+            initializeClipboardFeature();
+        });
     </script>
 </body>
 </html>

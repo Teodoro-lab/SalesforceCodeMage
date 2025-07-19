@@ -2,9 +2,9 @@
   "name": "SalesforceCodeMage",
   "displayName": "Salesforce CodeMage",
   "description": "Utilities for Salesforce developers",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "icon": "resources/magicSF-logo.webp",
-  "publisher": "Teodoro-lab",
+  "publisher": "teodoro-lab",
   "homepage": "https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/README.md",
   "repository": {
     "type": "git",
@@ -55,6 +55,18 @@
       {
         "command": "magicSF.deleteDebugLogs",
         "title": "magicSF: Delete Debug Logs"
+      },
+      {
+        "command": "magicSF.refresh",
+        "title": "magicSF: Refresh LWC Explorer"
+      },
+      {
+        "command": "magicSF.showTraceFlags",
+        "title": "magicSF: Show Trace Flags"
+      },
+      {
+        "command": "magicSF.refreshOrgConnection",
+        "title": "magicSF: Refresh Org Connection"
       }
     ],
     "menus": {
@@ -82,8 +94,21 @@
           "type": "string",
           "default": "SELECT Id, Application, DurationMilliseconds, Location, LogLength, LogUser.Name, Operation, Request, StartTime, Status FROM ApexLog ORDER BY StartTime DESC LIMIT 200",
           "description": "Change the default query for debug logs"
+        },
+        "magicSF.closePreviousEditorOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Close the previously active editor when opening a new file from the LWC Explorer."
         }
       }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "lwcExplorer",
+          "name": "LWC Components"
+        }
+      ]
     }
   },
   "scripts": {
