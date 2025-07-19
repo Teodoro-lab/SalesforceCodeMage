@@ -189,14 +189,11 @@
             const titleElement = document.getElementById('objectTitle');
             let titleContent = `Fields of ${sObjectName}`;
             
-            // Add Salesforce link if instanceUrl is available
             if (instanceUrl) {
                 titleContent += ` <a href="#" onclick="openObjectInSalesforce('${instanceUrl}', '${sObjectName}')" title="Open in Salesforce Setup" style="margin-left:8px;">🧷</a>`;
             }
             
-            // Add clipboard button
             titleContent += ` <i id="clipboardButton" class="codicon codicon-clippy" onclick="copyObjectToClipboard()" title="Copy object JSON to clipboard" style="cursor: pointer; margin-left: 8px;"></i>`;
-            
             titleElement.innerHTML = titleContent;
         }
 
@@ -304,19 +301,6 @@
                 command: 'openObjectInSalesforce',
                 data: { instanceUrl, sObjectName }
             });
-        }
-
-        /**
-         * Clipboard functionality for copying sObject JSON
-         */
-        function initializeClipboardFeature() {
-            // Clipboard functionality is now handled through VSCode messaging
-            // This function is kept for compatibility but may be removed in future versions
-        }
-
-        function handleClipboardCopy() {
-            // Legacy function - now handled through VSCode messaging
-            copyObjectToClipboard();
         }
 
         function showNotification(message = 'Copied to clipboard') {
@@ -460,7 +444,6 @@
         }
 
         function initialize() {
-            // Only initialize if we have data
             if (sObjectData && sObjectData.fields) {
                 filterFields();
                 initializeEventListeners();
@@ -468,10 +451,8 @@
             }
         }
 
-        // Notify extension that webview is ready
         document.addEventListener('DOMContentLoaded', () => {
             vscode.postMessage({ command: 'webviewReady' });
-            initializeClipboardFeature();
         });
     </script>
 </body>
