@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Results</title>
+    <link href="\${codiconsUri}" rel="stylesheet" />
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            padding: 20px;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--vscode-editorGroup-border);
+        }
+        
+        .query-display {
+            background: var(--vscode-textCodeBlock-background);
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-radius: 3px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+        
+        .controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid var(--vscode-button-border, transparent);
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        
+        .results-container {
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-radius: 3px;
+            max-height: 70vh;
+            overflow: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-editorGroup-border);
+            border-right: 1px solid var(--vscode-editorGroup-border);
+        }
+        
+        th:last-child, td:last-child {
+            border-right: none;
+        }
+        
+        th {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .no-results {
+            padding: 40px;
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .results-info {
+            color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="title">Query Results</h1>
+        <div class="results-info" id="resultsInfo">Loading...</div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn" onclick="copyQuery()" title="Copy query to clipboard">
+            <i class="codicon codicon-copy"></i>
+            Copy Query
+        </button>
+        <button class="btn" onclick="exportResults()" title="Export results to CSV">
+            <i class="codicon codicon-export"></i>
+            Export CSV
+        </button>
+    </div>
+    
+    <div class="query-display" id="queryDisplay"></div>
+    
+    <div class="results-container">
+        <div id="resultsTable"></div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentData = null;
+        
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            if (message.command === 'displayResults') {
+                displayResults(message.data);
+            }
+        });
+        
+        function displayResults(data) {
+            currentData = data;
+
+            document.getElementById('title').textContent = `Query Results: ${data.sObjectName}`;
+            document.getElementById('queryDisplay').textContent = data.query;
+            document.getElementById('resultsInfo').textContent = 
+                `${data.records.length} record(s) returned${data.totalSize > data.records.length ? ` of ${data.totalSize} total` : ''}`;
+
+            const resultsTable = document.getElementById('resultsTable');
+            
+            if (!data.records || data.records.length === 0) {
+                resultsTable.innerHTML = '<div class="no-results">No records found</div>';
+                return;
+            }
+            
+            // Get all unique keys
+            const allKeys = new Set();
+            data.records.forEach(record => {
+                Object.keys(record).forEach(key => {
+                    if (key !== 'attributes') {
+                        allKeys.add(key);
+                    }
+                });
+            });
+            
+            const keys = Array.from(allKeys);
+            
+            // Build table
+            let html = '<table>';
+            
+            // Header
+            html += '<tr>';
+            keys.forEach(key => {
+                html += `<th>${key}</th>`;
+            });
+            html += '</tr>';
+            
+            // Rows
+            data.records.forEach(record => {
+                html += '<tr>';
+                keys.forEach(key => {
+                    const value = record[key];
+                    const displayValue = value === null || value === undefined ? '' : String(value);
+                    html += `<td>${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            resultsTable.innerHTML = html;
+        }
+        
+        function copyQuery() {
+            if (currentData && currentData.query) {
+                vscode.postMessage({
+                    command: 'copyToClipboard',
+                    data: currentData.query
+                });
+            }
+        }
+        
+        function exportResults() {
+            if (currentData) {
+                vscode.postMessage({
+                    command: 'exportResults',
+                    data: currentData
+                });
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            vscode.postMessage({ command: 'webviewReady' });
+        });
+    </script>
+</body>
+</html>

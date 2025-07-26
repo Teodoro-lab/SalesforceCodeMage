@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { useCache } from './cache';
 import * as timezone from 'moment-timezone';
+import { findWorkspaceTargetOrg } from './salesforceUtils';
 
 export class SalesforceAPI {
     private static instance: SalesforceAPI;
@@ -54,11 +55,17 @@ export class SalesforceAPI {
      */
     private async ensureConnection(): Promise<void> {
         try {
-            const targetOrg = this.findWorkspaceTargetOrg();
+            const orgs = await SalesforceAPI.getOrgsInfo();
+            const targetOrg = findWorkspaceTargetOrg();
+            const targetOrgInfo = orgs.find((org: any) => org.alias === targetOrg);
+            
+            if (!targetOrgInfo) {
+                throw new Error(`Target org '${targetOrg}' not found in available orgs`);
+            }
             
             // Create new connection if none exists or target org has changed
             if (!this.connection || this.currentTargetOrg !== targetOrg) {
-                await this.connect(targetOrg);
+                await this.connect(targetOrgInfo.username);
             }
         } catch (error) {
             throw new Error(`Failed to establish connection: ${error}`);
@@ -159,7 +166,6 @@ export class SalesforceAPI {
     }
 
     public async fetchRecords(queryString: string) {
-        await this.ensureConnection();
         if (!this.connection) { throw new Error('Connection not initialized'); }
         const recordsInfo = await this.connection.query(queryString);
         return recordsInfo.records;

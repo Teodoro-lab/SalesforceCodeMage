@@ -90,6 +90,203 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             font-size: 1rem;
         }
+
+        /* Query Panel Styles */
+        .query-panel-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .query-panel-tab {
+            position: fixed;
+            bottom: 200px; /* Height of panel when open */
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-editorGroupHeader-tabsForeground);
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-bottom: none;
+            padding: 5px 15px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: bottom 0.3s ease-in-out;
+            z-index: 101;
+        }
+
+        .query-panel-tab.collapsed {
+            bottom: 0;
+        }
+
+        .query-panel-tab:hover {
+            background: var(--vscode-tab-activeBackground);
+        }
+
+        .query-panel {
+            background: var(--vscode-editor-background);
+            border-top: 2px solid var(--vscode-editorGroup-border);
+            height: 200px;
+            padding: 15px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .query-panel.collapsed {
+            transform: translateY(100%);
+        }
+
+        .query-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .query-panel-title {
+            font-weight: bold;
+            color: var(--vscode-foreground);
+        }
+
+        .query-panel-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .query-input {
+            flex: 1;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid var(--vscode-input-border);
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+            font-size: 13px;
+            resize: none;
+            border-radius: 3px;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid var(--vscode-button-border, transparent);
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+
+        .btn-secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .auto-update-indicator {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .auto-update-indicator.active {
+            color: var(--vscode-textLink-foreground);
+        }
+
+        /* Results area */
+        .query-results-container {
+            margin-bottom: 220px; /* Space for query panel when open */
+            transition: margin-bottom 0.3s ease-in-out;
+        }
+
+        .query-results-container.panel-collapsed {
+            margin-bottom: 0;
+        }
+
+        .query-results {
+            margin-top: 20px;
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-radius: 3px;
+            max-height: 300px;
+            overflow: auto;
+            background: var(--vscode-editor-background);
+        }
+
+        .query-results table {
+            margin: 0;
+            border: none;
+        }
+
+        .query-results th,
+        .query-results td {
+            border-right: 1px solid var(--vscode-editorGroup-border);
+            font-size: 12px;
+            padding: 6px 8px;
+        }
+
+        .query-results th:last-child,
+        .query-results td:last-child {
+            border-right: none;
+        }
+
+        .query-error {
+            background: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: 1px solid var(--vscode-inputValidation-errorBorder);
+            padding: 10px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--vscode-progressBar-background);
+            border-radius: 50%;
+            border-top-color: var(--vscode-progressBar-background);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Adjust table container for query panel */
+        .table-container {
+            margin-bottom: 0;
+            transition: margin-bottom 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body>
@@ -119,15 +316,66 @@
         Copied to clipboard
     </div>
     
-    <table id="fieldsTable">
-        <!-- Table headers and rows will be injected here -->
-    </table>
+    <div class="table-container">
+        <table id="fieldsTable">
+            <!-- Table headers and rows will be injected here -->
+        </table>
+    </div>
+
+    <!-- Query Results Container -->
+    <div id="queryResultsContainer" class="query-results-container panel-collapsed">
+        <div id="queryResults" class="query-results" style="display: none;">
+            <!-- Query results will be displayed here -->
+        </div>
+    </div>
+
+    <!-- Query Panel -->
+    <div id="queryPanelContainer" class="query-panel-container">
+        <div class="query-panel-tab collapsed" onclick="toggleQueryPanel()">
+            <i class="codicon codicon-database"></i>
+            <span id="queryTabText">Query</span>
+            <i id="queryTabIcon" class="codicon codicon-chevron-up"></i>
+        </div>
+        
+        <div id="queryPanel" class="query-panel collapsed">
+            <div class="query-panel-header">
+                <div class="query-panel-title">SOQL Query Builder</div>
+                <div class="query-panel-controls">
+                    <div id="autoUpdateIndicator" class="auto-update-indicator">
+                        <i class="codicon codicon-sync"></i>
+                        <span>Auto-updating</span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="clearQuery()" title="Clear query">
+                        <i class="codicon codicon-clear-all"></i>
+                        Clear
+                    </button>
+                    <button class="btn btn-secondary" onclick="copyQuery()" title="Copy query to clipboard">
+                        <i class="codicon codicon-copy"></i>
+                        Copy
+                    </button>
+                    <button id="executeBtn" class="btn" onclick="executeQuery()" title="Execute query">
+                        <i class="codicon codicon-play"></i>
+                        Execute in New Tab
+                    </button>
+                </div>
+            </div>
+            
+            <textarea id="queryInput" 
+                      class="query-input" 
+                      placeholder="Your SOQL query will appear here automatically as you select fields, or you can write your own..."
+                      oninput="onQueryInputChange()"></textarea>
+        </div>
+    </div>
 
     <script>
         /**
          * Global state management
          */
         let sObjectData = null;
+        let queryPanelOpen = false;
+        let autoUpdateEnabled = true;
+        let isExecutingQuery = false;
+        let manualQueryEdit = false;
         
         /**
          * Configuration and constants
@@ -149,7 +397,15 @@
             hideSystemFields: () => document.getElementById('hideSystemFields'),
             showStandardFields: () => document.getElementById('showStandardFields'),
             showCustomFields: () => document.getElementById('showCustomFields'),
-            clipboardNotification: () => document.getElementById('clipboardNotification')
+            clipboardNotification: () => document.getElementById('clipboardNotification'),
+            queryPanel: () => document.getElementById('queryPanel'),
+            queryInput: () => document.getElementById('queryInput'),
+            queryTabIcon: () => document.getElementById('queryTabIcon'),
+            queryTabText: () => document.getElementById('queryTabText'),
+            executeBtn: () => document.getElementById('executeBtn'),
+            autoUpdateIndicator: () => document.getElementById('autoUpdateIndicator'),
+            queryResults: () => document.getElementById('queryResults'),
+            queryResultsContainer: () => document.getElementById('queryResultsContainer')
         };
 
         /**
@@ -170,6 +426,12 @@
                 case 'initializeData':
                     initializeWithData(message.data);
                     break;
+                case 'queryResult':
+                    handleQueryResult(message.data);
+                    break;
+                case 'queryError':
+                    handleQueryError(message.data);
+                    break;
                 default:
                     console.warn('Unknown message command:', message.command);
             }
@@ -180,10 +442,234 @@
             updateTitle(data.sObjectName, data.instanceUrl);
             generateTableContent(data.fields, data.sObjectName, data.instanceUrl);
             initialize();
+            updateQueryFromSelection(); // Initialize with basic query
         }
 
         /**
-         * UI Content Generation
+         * Query Panel Management
+         */
+        function toggleQueryPanel() {
+            queryPanelOpen = !queryPanelOpen;
+            const panel = UI_ELEMENTS.queryPanel();
+            const tab = document.querySelector('.query-panel-tab');
+            const icon = UI_ELEMENTS.queryTabIcon();
+            const resultsContainer = UI_ELEMENTS.queryResultsContainer();
+            
+            if (queryPanelOpen) {
+                panel.classList.remove('collapsed');
+                tab.classList.remove('collapsed');
+                icon.classList.remove('codicon-chevron-up');
+                icon.classList.add('codicon-chevron-down');
+                resultsContainer.classList.remove('panel-collapsed');
+            } else {
+                panel.classList.add('collapsed');
+                tab.classList.add('collapsed');
+                icon.classList.remove('codicon-chevron-down');
+                icon.classList.add('codicon-chevron-up');
+                resultsContainer.classList.add('panel-collapsed');
+            }
+        }
+
+        function onQueryInputChange() {
+            const queryInput = UI_ELEMENTS.queryInput();
+            const indicator = UI_ELEMENTS.autoUpdateIndicator();
+            
+            // If user manually edits the query, disable auto-update
+            if (!manualQueryEdit) {
+                manualQueryEdit = true;
+                autoUpdateEnabled = false;
+                indicator.classList.remove('active');
+                indicator.innerHTML = '<i class="codicon codicon-lock"></i><span>Manual mode</span>';
+            }
+        }
+
+        function updateQueryFromSelection() {
+            if (!autoUpdateEnabled || !sObjectData) return;
+            
+            const selectedFields = getSelectedFields();
+            let query = '';
+            
+            if (selectedFields.length === 0) {
+                // Default query with Id
+                query = `SELECT Id\nFROM ${sObjectData.sObjectName}\nLIMIT 10`;
+            } else {
+                // Build query with selected fields
+                const fieldList = selectedFields.join(', ');
+                query = `SELECT ${fieldList}\nFROM ${sObjectData.sObjectName}\nLIMIT 10`;
+            }
+            
+            const queryInput = UI_ELEMENTS.queryInput();
+            queryInput.value = query;
+        }
+
+        function getSelectedFields() {
+            const checkboxes = document.querySelectorAll('.field-checkbox:checked');
+            const fields = [];
+            
+            checkboxes.forEach(checkbox => {
+                fields.push(checkbox.dataset.field);
+            });
+            
+            return fields;
+        }
+
+        function clearQuery() {
+            const queryInput = UI_ELEMENTS.queryInput();
+            queryInput.value = '';
+            manualQueryEdit = false;
+            autoUpdateEnabled = true;
+            
+            const indicator = UI_ELEMENTS.autoUpdateIndicator();
+            indicator.classList.add('active');
+            indicator.innerHTML = '<i class="codicon codicon-sync"></i><span>Auto-updating</span>';
+            
+            updateQueryFromSelection();
+        }
+
+        function copyQuery() {
+            const queryInput = UI_ELEMENTS.queryInput();
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                showNotification('No query to copy');
+                return;
+            }
+            
+            navigator.clipboard.writeText(query).then(() => {
+                showNotification('Query copied to clipboard');
+            }).catch(() => {
+                // Fallback for older browsers
+                queryInput.select();
+                document.execCommand('copy');
+                showNotification('Query copied to clipboard');
+            });
+        }
+
+        function executeQuery() {
+            const queryInput = UI_ELEMENTS.queryInput();
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                showNotification('Please enter a query to execute');
+                return;
+            }
+            
+            if (isExecutingQuery) {
+                return; // Prevent multiple simultaneous executions
+            }
+            
+            isExecutingQuery = true;
+            const executeBtn = UI_ELEMENTS.executeBtn();
+            executeBtn.disabled = true;
+            executeBtn.innerHTML = '<div class="loading-spinner"></div>Executing...';
+            
+            // Send query to extension to open in new tab
+            vscode.postMessage({
+                command: 'executeQueryInNewTab',
+                data: {
+                    query: query,
+                    sObjectName: sObjectData.sObjectName,
+                    sourceTitle: `${sObjectData.sObjectName} Fields`
+                }
+            });
+            
+            // Reset button state after a short delay
+            setTimeout(() => {
+                isExecutingQuery = false;
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = '<i class="codicon codicon-play"></i>Execute in New Tab';
+            }, 1000);
+        }
+
+        function handleQueryResult(data) {
+            isExecutingQuery = false;
+            const executeBtn = UI_ELEMENTS.executeBtn();
+            executeBtn.disabled = false;
+            executeBtn.innerHTML = '<i class="codicon codicon-play"></i>Execute';
+            
+            displayQueryResults(data.records);
+            showNotification(`Query executed successfully. ${data.records.length} record(s) returned.`);
+        }
+
+        function handleQueryError(data) {
+            isExecutingQuery = false;
+            const executeBtn = UI_ELEMENTS.executeBtn();
+            executeBtn.disabled = false;
+            executeBtn.innerHTML = '<i class="codicon codicon-play"></i>Execute';
+            
+            displayQueryError(data.error);
+            showNotification('Query execution failed');
+        }
+
+        function displayQueryResults(records) {
+            const queryResults = UI_ELEMENTS.queryResults();
+            
+            if (!records || records.length === 0) {
+                queryResults.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--vscode-descriptionForeground);">No records found</div>';
+                queryResults.style.display = 'block';
+                return;
+            }
+            
+            // Get all unique keys from all records
+            const allKeys = new Set();
+            records.forEach(record => {
+                Object.keys(record).forEach(key => {
+                    if (key !== 'attributes') { // Skip Salesforce metadata
+                        allKeys.add(key);
+                    }
+                });
+            });
+            
+            const keys = Array.from(allKeys);
+            
+            // Build table HTML
+            let html = '<table>';
+            
+            // Header row
+            html += '<tr>';
+            keys.forEach(key => {
+                html += `<th>${key}</th>`;
+            });
+            html += '</tr>';
+            
+            // Data rows
+            records.forEach(record => {
+                html += '<tr>';
+                keys.forEach(key => {
+                    const value = record[key];
+                    const displayValue = value === null || value === undefined ? '' : String(value);
+                    html += `<td>${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            
+            queryResults.innerHTML = html;
+            queryResults.style.display = 'block';
+        }
+
+        function displayQueryError(error) {
+            const queryResults = UI_ELEMENTS.queryResults();
+            queryResults.innerHTML = `<div class="query-error">
+                <strong>Query Error:</strong><br>
+                ${error}
+            </div>`;
+            queryResults.style.display = 'block';
+        }
+
+        /**
+         * Enhanced field selection handling
+         */
+        function handleFieldSelectionChange() {
+            // Update query when field selection changes (if auto-update is enabled)
+            if (autoUpdateEnabled) {
+                updateQueryFromSelection();
+            }
+        }
+
+        /**
+         * UI Content Generation (enhanced with checkboxes)
          */
         function updateTitle(sObjectName, instanceUrl) {
             const titleElement = document.getElementById('objectTitle');
@@ -205,7 +691,9 @@
         function generateTableHeaders() {
             return `
                 <tr>
-                    <th></th>
+                    <th style="width: 40px;">
+                        <input type="checkbox" id="selectAllFields" onchange="toggleAllFields()" title="Select all visible fields">
+                    </th>
                     <th class="sortable" onclick="sortTable(1)">Label</th>
                     <th class="sortable" onclick="sortTable(2)">Name</th>
                     <th class="sortable" onclick="sortTable(3)">Type</th>
@@ -235,8 +723,8 @@
                 fieldLink = ` <a href="#" onclick="openFieldInSalesforce('${instanceUrl}', '${sObjectName}', '${field.name}')" title="Open field in Salesforce Setup" style="margin-left:4px;">🧷</a>`;
             }
             
-            // Add checkbox for field selection
-            const checkbox = `<input type="checkbox" class="field-checkbox" data-field="${field.name}">`;
+            // Add checkbox for field selection with enhanced functionality
+            const checkbox = `<input type="checkbox" class="field-checkbox" data-field="${field.name}" onchange="handleFieldSelectionChange()">`;
             
             return `
                 <tr class="field-row">
@@ -251,6 +739,20 @@
                     <td>${field.defaultedOnCreate ? 'Yes' : 'No'}</td>
                 </tr>
             `;
+        }
+
+        function toggleAllFields() {
+            const selectAllCheckbox = document.getElementById('selectAllFields');
+            const fieldCheckboxes = document.querySelectorAll('.field-checkbox');
+            const visibleCheckboxes = Array.from(fieldCheckboxes).filter(cb => 
+                cb.closest('tr').style.display !== 'none'
+            );
+            
+            visibleCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            
+            handleFieldSelectionChange();
         }
 
         function generatePicklistValues(field) {
@@ -314,12 +816,14 @@
         }
 
         /**
-         * Field filtering logic
+         * Field filtering logic (enhanced to update select all checkbox)
          */
         function filterFields() {
             const filterOptions = getFilterOptions();
             const searchTerm = filterOptions.searchTerm.toUpperCase();
             const tableRows = getTableRows();
+            let visibleCount = 0;
+            let checkedCount = 0;
 
             tableRows.forEach(row => {
                 const fieldName = extractFieldName(row);
@@ -329,7 +833,20 @@
                                  matchesSearchTerm(row, searchTerm);
                 
                 row.style.display = shouldShow ? '' : 'none';
+                
+                if (shouldShow) {
+                    visibleCount++;
+                    const checkbox = row.querySelector('.field-checkbox');
+                    if (checkbox && checkbox.checked) {
+                        checkedCount++;
+                    }
+                }
             });
+
+            // Update select all checkbox state
+            const selectAllCheckbox = document.getElementById('selectAllFields');
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < visibleCount;
+            selectAllCheckbox.checked = visibleCount > 0 && checkedCount === visibleCount;
         }
 
         function getFilterOptions() {
@@ -448,6 +965,10 @@
                 filterFields();
                 initializeEventListeners();
                 initializeExpandableContent();
+                
+                // Initialize query panel state
+                const indicator = UI_ELEMENTS.autoUpdateIndicator();
+                indicator.classList.add('active');
             }
         }
 

@@ -1,6 +1,12 @@
-import * as fs from 'fs';
+/**
+ * Get extension context - now uses stored global context
+ */
+function getExtensionContext(): vscode.ExtensionContext | undefined {
+    return globalExtensionContext;
+}import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { SalesforceAPI } from '../salesforceAPI';
 
 interface FieldData {
     name: string;
@@ -21,14 +27,45 @@ interface SObjectViewData {
 
 interface WebViewMessageData {
     command: string;
-    data: SObjectViewData;
+    data: any;
+}
+
+interface QueryExecutionData {
+    query: string;
+    sObjectName: string;
+    sourceTitle?: string;
+}
+
+interface QueryResultData {
+    records: any[];
+    totalSize: number;
+}
+
+interface QueryErrorData {
+    error: string;
+    errorCode?: string;
 }
 
 const HTML_TEMPLATE_PATH = 'src/objectTables/objectTable.html';
+const QUERY_RESULTS_TEMPLATE_PATH = 'src/objectTables/queryResults.html';
 
+// Global registry to track open webview panels
+const openWebviewPanels = new Map<string, vscode.WebviewPanel>();
+
+// Store extension context globally (set this when your extension activates)
+let globalExtensionContext: vscode.ExtensionContext | undefined = undefined;
 
 /**
- * Creates and configures the sObject table webview panel
+ * Initialize the object table manager with extension context
+ * Call this from your extension's activate() function
+ */
+export function initializeObjectTableManager(context: vscode.ExtensionContext): void {
+    globalExtensionContext = context;
+}
+
+/**
+ * Creates and configures the sObject table webview panel with query functionality
+ * Reuses existing panel if one exists for the same sObject
  */
 export async function createObjectTable( 
     context: vscode.ExtensionContext,
@@ -37,11 +74,40 @@ export async function createObjectTable(
     instanceUrl?: string, 
 ): Promise<vscode.WebviewPanel> {
     
-    const panel = createWebViewPanel(sObjectName);
+    const panelKey = `objFields_${sObjectName}`;
+    
+    // Check if panel already exists for this sObject
+    let panel = openWebviewPanels.get(panelKey);
+    
+    if (panel) {
+        // Panel exists, reveal it and update data
+        panel.reveal(vscode.ViewColumn.One);
+        
+        // Update with new data
+        const viewData: SObjectViewData = {
+            sObjectName,
+            fields,
+            instanceUrl
+        };
+        
+        postMessageToWebView(panel, 'initializeData', viewData);
+        return panel;
+    }
+    
+    // Create new panel
+    panel = createWebViewPanel(sObjectName);
     const codiconsUri = getCodiconsUri(panel, context);
     
     setupWebViewContent(panel, context.extensionPath, codiconsUri);
     setupMessageHandling(panel);
+    
+    // Register panel in our tracking map
+    openWebviewPanels.set(panelKey, panel);
+    
+    // Clean up when panel is disposed
+    panel.onDidDispose(() => {
+        openWebviewPanels.delete(panelKey);
+    });
     
     // Send initial data to webview once it's ready
     const viewData: SObjectViewData = {
@@ -132,6 +198,10 @@ function handleWebViewMessage(panel: vscode.WebviewPanel, message: any): void {
             handleOpenObjectInSalesforce(message.data);
             break;
             
+        case 'executeQueryInNewTab':
+            handleExecuteQueryInNewTab(panel, message.data);
+            break;
+            
         case 'webviewReady':
             console.log('Webview is ready to receive data');
             break;
@@ -177,6 +247,213 @@ function handleOpenObjectInSalesforce(data: { instanceUrl: string; sObjectName: 
 }
 
 /**
+ * Handles SOQL query execution in a new tab
+ */
+async function handleExecuteQueryInNewTab(sourcePanel: vscode.WebviewPanel, data: QueryExecutionData): Promise<void> {
+    const { query, sObjectName, sourceTitle } = data;
+    
+    try {
+        console.log(`Executing query for ${sObjectName} in new tab:`, query);
+        
+        // Execute the query
+        const queryResult = await executeSalesforceQuery(query);
+        console.log(`Query executed successfully for ${sObjectName}`, queryResult);
+        
+        // Create new webview panel for results
+        const resultsPanel = createQueryResultsPanel(query, sObjectName, sourceTitle);
+        console.log(`Created new query results panel for ${sObjectName}`);
+        console.log(resultsPanel);
+        
+        // Setup the results panel
+        const context = getExtensionContext(); // You'll need to store/access context
+        if (context) {
+            console.log('Setting up query results panel with context:', context);
+            const codiconsUri = getCodiconsUri(resultsPanel, context);
+            setupQueryResultsContent(resultsPanel, context.extensionPath, codiconsUri);
+            console.log('Setting up message handling for query results panel');
+            setupQueryResultsMessageHandling(resultsPanel);
+            console.log('Posting initial message to query results panel');
+            
+            // Send results to the new panel
+            setTimeout(() => {
+                console.log('Posting results to query results panel:', queryResult);
+                postMessageToWebView(resultsPanel, 'displayResults', {
+                    query,
+                    sObjectName,
+                    records: queryResult.records,
+                    totalSize: queryResult.totalSize
+                });
+            }, 1000);
+        }
+        
+    } catch (error) {
+        console.error('Query execution error:', error);
+        vscode.window.showErrorMessage(`Query execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Creates a webview panel specifically for query results
+ */
+function createQueryResultsPanel(query: string, sObjectName: string, sourceTitle?: string): vscode.WebviewPanel {
+    const title = `Query Results: ${sObjectName}`;
+    
+    return vscode.window.createWebviewPanel(
+        'queryResults',
+        title,
+        vscode.ViewColumn.Two, // Open in second column
+        {
+            enableScripts: true,
+            enableCommandUris: true,
+            retainContextWhenHidden: true,
+        }
+    );
+}
+
+/**
+ * Sets up the HTML content for query results panel
+ */
+function setupQueryResultsContent(panel: vscode.WebviewPanel, extPath: string, codiconsUri: string): void {
+    // First try to load a dedicated query results template
+    const queryResultsHtmlPath = path.normalize(path.join(extPath, QUERY_RESULTS_TEMPLATE_PATH));
+    
+    let htmlContent: string;
+    
+    try {
+        htmlContent = fs.readFileSync(queryResultsHtmlPath, 'utf-8');
+        htmlContent = htmlContent.replace('${codiconsUri}', codiconsUri);
+        panel.webview.html = htmlContent;
+    } catch (error) {
+        console.log('Query results template not found, using inline HTML');
+    }
+}
+
+/**
+ * Sets up message handling for query results panel
+ */
+function setupQueryResultsMessageHandling(panel: vscode.WebviewPanel): void {
+    panel.webview.onDidReceiveMessage((message) => {
+        switch (message.command) {
+            case 'copyToClipboard':
+                handleCopyToClipboard(message.data);
+                break;
+            case 'exportResults':
+                handleExportResults(message.data);
+                break;
+            case 'webviewReady':
+                console.log('Query results webview is ready');
+                break;
+            default:
+                console.warn('Unknown query results message command:', message.command);
+        }
+    });
+}
+
+
+/**
+ * Handle exporting query results to CSV
+ */
+function handleExportResults(data: any): void {
+    try {
+        if (!data.records || data.records.length === 0) {
+            vscode.window.showInformationMessage('No data to export');
+            return;
+        }
+        
+        // Convert to CSV
+        const records = data.records;
+        const allKeys = new Set<string>();
+        
+        // Get all unique keys
+        records.forEach((record: any) => {
+            Object.keys(record).forEach(key => {
+                if (key !== 'attributes') {
+                    allKeys.add(key);
+                }
+            });
+        });
+        
+        const keys = Array.from(allKeys);
+        
+        // Build CSV content
+        let csvContent = keys.join(',') + '\n';
+        
+        records.forEach((record: any) => {
+            const row = keys.map(key => {
+                const value = record[key];
+                const stringValue = value === null || value === undefined ? '' : String(value);
+                // Escape commas and quotes
+                return stringValue.includes(',') || stringValue.includes('"') 
+                    ? `"${stringValue.replace(/"/g, '""')}"` 
+                    : stringValue;
+            });
+            csvContent += row.join(',') + '\n';
+        });
+        
+        // Save file
+        vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(`${data.sObjectName}_query_results.csv`),
+            filters: {
+                'CSV Files': ['csv'],
+                'All Files': ['*']
+            }
+        }).then(uri => {
+            if (uri) {
+                require('fs').writeFileSync(uri.fsPath, csvContent, 'utf8');
+                vscode.window.showInformationMessage(`Results exported to ${uri.fsPath}`);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Export error:', error);
+        vscode.window.showErrorMessage('Failed to export results');
+    }
+}
+
+/**
+ * Execute SOQL query against Salesforce
+ * TODO: This is where you'll implement your actual Salesforce API integration
+ * 
+ * @param query The SOQL query to execute
+ * @returns Promise with query results
+ */
+async function executeSalesforceQuery(query: string): Promise<QueryResultData | any> {
+    // PLACEHOLDER IMPLEMENTATION
+    // Replace this entire function with your actual Salesforce API integration
+    
+    // Simulate API delay
+    // await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // // For demonstration, return mock data
+    // // In your real implementation, this should:
+    // // 1. Get the current Salesforce connection/session
+    // // 2. Execute the SOQL query using your preferred Salesforce API client
+    // // 3. Return the actual results
+    
+    // const mockResults: QueryResultData = {
+    //     records: [
+    //         { Id: '001xx000003DHPi', Name: 'Sample Account 1', Type: 'Customer' },
+    //         { Id: '001xx000003DHPj', Name: 'Sample Account 2', Type: 'Partner' },
+    //         { Id: '001xx000003DHPk', Name: 'Sample Account 3', Type: 'Prospect' }
+    //     ],
+    //     totalSize: 3
+    // };
+
+    let salesforce = SalesforceAPI.getInstance();
+    let results = await salesforce.fetchRecords(query);
+    let data : QueryResultData = {
+        records: results,
+        totalSize: results.length
+    };
+
+    console.log('Executing query:', query);
+    console.log('Query results:', results);
+
+    return data;
+}
+
+
+/**
  * Posts a message to the webview with the specified command and data
  */
 function postMessageToWebView(panel: vscode.WebviewPanel, command: string, data: any): void {
@@ -189,4 +466,79 @@ function postMessageToWebView(panel: vscode.WebviewPanel, command: string, data:
         () => console.log(`Message posted successfully: ${command}`),
         (error) => console.error('Error posting message:', error)
     );
+}
+
+/**
+ * Additional utility functions for query building and validation
+ */
+
+/**
+ * Validates a SOQL query for basic syntax issues
+ */
+export function validateSOQLQuery(query: string): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    if (!query.trim()) {
+        errors.push('Query cannot be empty');
+        return { isValid: false, errors };
+    }
+    
+    const upperQuery = query.toUpperCase().trim();
+    
+    // Basic validation checks
+    if (!upperQuery.startsWith('SELECT')) {
+        errors.push('Query must start with SELECT');
+    }
+    
+    if (!upperQuery.includes('FROM')) {
+        errors.push('Query must include FROM clause');
+    }
+    
+    // Check for balanced parentheses
+    const openParens = (query.match(/\(/g) || []).length;
+    const closeParens = (query.match(/\)/g) || []).length;
+    if (openParens !== closeParens) {
+        errors.push('Unbalanced parentheses in query');
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+}
+
+/**
+ * Formats a SOQL query for better readability
+ */
+export function formatSOQLQuery(query: string): string {
+    return query
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .replace(/\s*,\s*/g, ', ') // Clean up commas
+        .replace(/\bSELECT\b/gi, 'SELECT\n  ')
+        .replace(/\bFROM\b/gi, '\nFROM')
+        .replace(/\bWHERE\b/gi, '\nWHERE')
+        .replace(/\bORDER BY\b/gi, '\nORDER BY')
+        .replace(/\bLIMIT\b/gi, '\nLIMIT')
+        .replace(/\bGROUP BY\b/gi, '\nGROUP BY')
+        .replace(/\bHAVING\b/gi, '\nHAVING')
+        .trim();
+}
+
+/**
+ * Extracts field names from a list of selected fields for query building
+ */
+export function buildFieldListForQuery(selectedFields: string[]): string {
+    if (selectedFields.length === 0) {
+        return 'Id';
+    }
+    
+    // Remove duplicates and sort
+    const uniqueFields = [...new Set(selectedFields)].sort();
+    
+    // Always include Id if not already present
+    if (!uniqueFields.includes('Id')) {
+        uniqueFields.unshift('Id');
+    }
+    
+    return uniqueFields.join(', ');
 }

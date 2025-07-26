@@ -4,12 +4,14 @@ import { SalesforceAPI } from './salesforceAPI';
 import { setupHoverApexProvider } from './hoverProvider';
 import { LwcExplorerProvider } from './lwcExplorerProvider';
 import { CommandManager } from './commandManager';
+import { initializeObjectTableManager } from './objectTables/objectTable';
 
 export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
     
     try {
         const targetOrg = await initializeSalesforceConnection();
+        initializeObjectTableManager(context);
         setupProviders(context);
         registerCommands(context, targetOrg);
         
