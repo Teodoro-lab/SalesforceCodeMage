@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Query Results</title>
-    <link href="\${codiconsUri}" rel="stylesheet" />
+    <link href="${codiconsUri}" rel="stylesheet" />
     <style>
         body {
             font-family: var(--vscode-font-family);
@@ -72,6 +72,7 @@
             text-align: left;
             border-bottom: 1px solid var(--vscode-editorGroup-border);
             border-right: 1px solid var(--vscode-editorGroup-border);
+            vertical-align: top;
         }
         
         th:last-child, td:last-child {
@@ -97,6 +98,75 @@
             font-size: 12px;
             margin-bottom: 10px;
         }
+
+        /* Nested object styles */
+        .nested-object {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-radius: 3px;
+            padding: 8px;
+            margin: 2px 0;
+            font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+            font-size: 12px;
+            max-width: 300px;
+            max-height: 150px;
+            overflow: auto;
+        }
+
+        .nested-object-header {
+            font-weight: bold;
+            color: var(--vscode-symbolIcon-objectForeground);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .nested-records {
+            border-left: 2px solid var(--vscode-editorGroup-border);
+            padding-left: 8px;
+        }
+
+        .nested-record {
+            margin: 4px 0;
+            padding: 4px;
+            background: var(--vscode-editor-background);
+            border-radius: 2px;
+            border: 1px solid var(--vscode-editorGroup-border);
+        }
+
+        .nested-field {
+            margin: 2px 0;
+            font-size: 11px;
+        }
+
+        .nested-field-name {
+            color: var(--vscode-symbolIcon-propertyForeground);
+            font-weight: 500;
+        }
+
+        .nested-field-value {
+            color: var(--vscode-foreground);
+            margin-left: 8px;
+        }
+
+        .expandable-nested {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--vscode-textLink-foreground);
+            text-decoration: underline;
+            font-size: 11px;
+        }
+
+        .expandable-nested:hover {
+            color: var(--vscode-textLink-activeForeground);
+        }
+
+        .collapsed-nested {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -113,6 +183,14 @@
         <button class="btn" onclick="exportResults()" title="Export results to CSV">
             <i class="codicon codicon-export"></i>
             Export CSV
+        </button>
+        <button class="btn" onclick="expandAllNested()" title="Expand all nested objects">
+            <i class="codicon codicon-expand-all"></i>
+            Expand All
+        </button>
+        <button class="btn" onclick="collapseAllNested()" title="Collapse all nested objects">
+            <i class="codicon codicon-collapse-all"></i>
+            Collapse All
         </button>
     </div>
     
@@ -135,12 +213,12 @@
         
         function displayResults(data) {
             currentData = data;
-
+            
             document.getElementById('title').textContent = `Query Results: ${data.sObjectName}`;
             document.getElementById('queryDisplay').textContent = data.query;
             document.getElementById('resultsInfo').textContent = 
                 `${data.records.length} record(s) returned${data.totalSize > data.records.length ? ` of ${data.totalSize} total` : ''}`;
-
+            
             const resultsTable = document.getElementById('resultsTable');
             
             if (!data.records || data.records.length === 0) {
@@ -171,11 +249,11 @@
             html += '</tr>';
             
             // Rows
-            data.records.forEach(record => {
+            data.records.forEach((record, recordIndex) => {
                 html += '<tr>';
                 keys.forEach(key => {
                     const value = record[key];
-                    const displayValue = value === null || value === undefined ? '' : String(value);
+                    const displayValue = formatCellValue(value, key, recordIndex);
                     html += `<td>${displayValue}</td>`;
                 });
                 html += '</tr>';
@@ -183,6 +261,172 @@
             
             html += '</table>';
             resultsTable.innerHTML = html;
+        }
+        
+        function formatCellValue(value, fieldName, recordIndex) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            
+            // Handle nested objects (subqueries and relationships)
+            if (typeof value === 'object') {
+                return formatNestedObject(value, fieldName, recordIndex);
+            }
+            
+            // Handle regular values
+            return String(value);
+        }
+        
+        function formatNestedObject(obj, fieldName, recordIndex) {
+            // Handle Salesforce query result objects (like subqueries)
+            if (obj.totalSize !== undefined && obj.records !== undefined) {
+                return formatSubqueryResult(obj, fieldName, recordIndex);
+            }
+            
+            // Handle regular relationship objects
+            if (obj.attributes && obj.attributes.type) {
+                return formatRelationshipObject(obj, fieldName, recordIndex);
+            }
+            
+            // Handle generic objects
+            return formatGenericObject(obj, fieldName, recordIndex);
+        }
+        
+        function formatSubqueryResult(subquery, fieldName, recordIndex) {
+            const uniqueId = `subquery_${recordIndex}_${fieldName}`;
+            const recordCount = subquery.records ? subquery.records.length : 0;
+            const totalSize = subquery.totalSize || recordCount;
+            
+            let html = `<div class="nested-object">
+                <div class="nested-object-header">
+                    <i class="codicon codicon-database"></i>
+                    <span>${fieldName} (${recordCount}/${totalSize} records)</span>
+                    <span class="expandable-nested" onclick="toggleNested('${uniqueId}')">
+                        <i class="codicon codicon-chevron-right" id="icon_${uniqueId}"></i>
+                        Details
+                    </span>
+                </div>
+                <div class="nested-records collapsed-nested" id="${uniqueId}">`;
+            
+            if (subquery.records && subquery.records.length > 0) {
+                subquery.records.forEach((record, index) => {
+                    html += `<div class="nested-record">
+                        <div style="font-weight: bold; margin-bottom: 4px;">Record ${index + 1}:</div>`;
+                    
+                    Object.keys(record).forEach(key => {
+                        if (key !== 'attributes') {
+                            const val = record[key];
+                            const displayVal = val === null || val === undefined ? '<em>null</em>' : 
+                                              typeof val === 'object' ? JSON.stringify(val) : String(val);
+                            html += `<div class="nested-field">
+                                <span class="nested-field-name">${key}:</span>
+                                <span class="nested-field-value">${displayVal}</span>
+                            </div>`;
+                        }
+                    });
+                    
+                    html += '</div>';
+                });
+            } else {
+                html += '<div style="padding: 8px; font-style: italic; color: var(--vscode-descriptionForeground);">No records</div>';
+            }
+            
+            html += '</div></div>';
+            return html;
+        }
+        
+        function formatRelationshipObject(obj, fieldName, recordIndex) {
+            const uniqueId = `rel_${recordIndex}_${fieldName}`;
+            const typeName = obj.attributes.type;
+            
+            let html = `<div class="nested-object">
+                <div class="nested-object-header">
+                    <i class="codicon codicon-symbol-object"></i>
+                    <span>${typeName}</span>
+                    <span class="expandable-nested" onclick="toggleNested('${uniqueId}')">
+                        <i class="codicon codicon-chevron-right" id="icon_${uniqueId}"></i>
+                        Details
+                    </span>
+                </div>
+                <div class="nested-records collapsed-nested" id="${uniqueId}">
+                    <div class="nested-record">`;
+            
+            Object.keys(obj).forEach(key => {
+                if (key !== 'attributes') {
+                    const val = obj[key];
+                    const displayVal = val === null || val === undefined ? '<em>null</em>' : String(val);
+                    html += `<div class="nested-field">
+                        <span class="nested-field-name">${key}:</span>
+                        <span class="nested-field-value">${displayVal}</span>
+                    </div>`;
+                }
+            });
+            
+            html += '</div></div></div>';
+            return html;
+        }
+        
+        function formatGenericObject(obj, fieldName, recordIndex) {
+            const uniqueId = `obj_${recordIndex}_${fieldName}`;
+            
+            let html = `<div class="nested-object">
+                <div class="nested-object-header">
+                    <i class="codicon codicon-json"></i>
+                    <span>Object</span>
+                    <span class="expandable-nested" onclick="toggleNested('${uniqueId}')">
+                        <i class="codicon codicon-chevron-right" id="icon_${uniqueId}"></i>
+                        Details
+                    </span>
+                </div>
+                <div class="nested-records collapsed-nested" id="${uniqueId}">
+                    <pre style="font-size: 11px; margin: 0; white-space: pre-wrap;">${JSON.stringify(obj, null, 2)}</pre>
+                </div>
+            </div>`;
+            
+            return html;
+        }
+        
+        function toggleNested(uniqueId) {
+            const element = document.getElementById(uniqueId);
+            const icon = document.getElementById('icon_' + uniqueId);
+            
+            if (element.classList.contains('collapsed-nested')) {
+                element.classList.remove('collapsed-nested');
+                icon.classList.remove('codicon-chevron-right');
+                icon.classList.add('codicon-chevron-down');
+            } else {
+                element.classList.add('collapsed-nested');
+                icon.classList.remove('codicon-chevron-down');
+                icon.classList.add('codicon-chevron-right');
+            }
+        }
+        
+        function expandAllNested() {
+            const allNested = document.querySelectorAll('.collapsed-nested');
+            const allIcons = document.querySelectorAll('[id^="icon_"]');
+            
+            allNested.forEach(element => {
+                element.classList.remove('collapsed-nested');
+            });
+            
+            allIcons.forEach(icon => {
+                icon.classList.remove('codicon-chevron-right');
+                icon.classList.add('codicon-chevron-down');
+            });
+        }
+        
+        function collapseAllNested() {
+            const allNested = document.querySelectorAll('.nested-records');
+            const allIcons = document.querySelectorAll('[id^="icon_"]');
+            
+            allNested.forEach(element => {
+                element.classList.add('collapsed-nested');
+            });
+            
+            allIcons.forEach(icon => {
+                icon.classList.remove('codicon-chevron-down');
+                icon.classList.add('codicon-chevron-right');
+            });
         }
         
         function copyQuery() {
