@@ -5,6 +5,7 @@ import { setupHoverApexProvider } from './hoverProvider';
 import { LwcExplorerProvider } from './lwcExplorerProvider';
 import { CommandManager } from './commandManager';
 import { initializeObjectTableManager } from './objectTables/objectTable';
+import { DebugLogViewerProvider } from './debugLogsSf/debugLogViewer';
 
 export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
@@ -41,6 +42,25 @@ function setupProviders(context: vscode.ExtensionContext) {
     const lwcExplorerProvider = new LwcExplorerProvider();
     vscode.window.registerTreeDataProvider('lwcExplorer', lwcExplorerProvider);
     vscode.commands.registerCommand('magicSF.refresh', () => lwcExplorerProvider.refresh());
+
+    const provider = new DebugLogViewerProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            DebugLogViewerProvider.viewType, 
+            provider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                }
+            }
+        )
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('salesforce.showDebugLogViewer', () => {
+            vscode.commands.executeCommand('workbench.view.extension.salesforce-debug-log-viewer');
+        })
+    );
 }
 
 function registerCommands(context: vscode.ExtensionContext, targetOrg: string) {

@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 
 import { SalesforceAPI } from '../salesforceAPI';
 
-const TRACE_FLAGS_HTML_PATH = 'src/traceFlags/traceFlags.html';
+const TRACE_FLAGS_HTML_PATH = 'templates/traceFlags.html';
 
 /**
  * Initialize and display the web view panel for trace flags.

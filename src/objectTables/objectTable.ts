@@ -46,8 +46,12 @@ interface QueryErrorData {
     errorCode?: string;
 }
 
-const HTML_TEMPLATE_PATH = 'src/objectTables/objectTable.html';
-const QUERY_RESULTS_TEMPLATE_PATH = 'src/objectTables/queryResults.html';
+const HTML_TEMPLATE_PATH = process.platform === 'darwin'
+    ? 'templates/objectTable.html'
+    : 'templates/objectTable.html';
+const QUERY_RESULTS_TEMPLATE_PATH = process.platform === 'darwin'
+    ? 'templates/queryResults.html'
+    : 'templates/queryResults.html';
 
 // Global registry to track open webview panels
 const openWebviewPanels = new Map<string, vscode.WebviewPanel>();
@@ -79,7 +83,7 @@ export async function createObjectTable(
     // Check if panel already exists for this sObject
     let panel = openWebviewPanels.get(panelKey);
     
-    if (panel) {
+    if (panel !== undefined) {
         // Panel exists, reveal it and update data
         panel.reveal(vscode.ViewColumn.One);
         
@@ -418,27 +422,6 @@ function handleExportResults(data: any): void {
  * @returns Promise with query results
  */
 async function executeSalesforceQuery(query: string): Promise<QueryResultData | any> {
-    // PLACEHOLDER IMPLEMENTATION
-    // Replace this entire function with your actual Salesforce API integration
-    
-    // Simulate API delay
-    // await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // // For demonstration, return mock data
-    // // In your real implementation, this should:
-    // // 1. Get the current Salesforce connection/session
-    // // 2. Execute the SOQL query using your preferred Salesforce API client
-    // // 3. Return the actual results
-    
-    // const mockResults: QueryResultData = {
-    //     records: [
-    //         { Id: '001xx000003DHPi', Name: 'Sample Account 1', Type: 'Customer' },
-    //         { Id: '001xx000003DHPj', Name: 'Sample Account 2', Type: 'Partner' },
-    //         { Id: '001xx000003DHPk', Name: 'Sample Account 3', Type: 'Prospect' }
-    //     ],
-    //     totalSize: 3
-    // };
-
     let salesforce = SalesforceAPI.getInstance();
     let results = await salesforce.fetchRecords(query);
     let data : QueryResultData = {
@@ -456,7 +439,12 @@ async function executeSalesforceQuery(query: string): Promise<QueryResultData | 
 /**
  * Posts a message to the webview with the specified command and data
  */
-function postMessageToWebView(panel: vscode.WebviewPanel, command: string, data: any): void {
+function postMessageToWebView(panel: vscode.WebviewPanel | undefined, command: string, data: any): void {
+    if (!panel) {
+        console.error('Webview panel is not defined');
+        return;
+    }
+
     const message: WebViewMessageData = {
         command,
         data

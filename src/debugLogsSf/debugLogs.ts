@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { SalesforceAPI } from '../salesforceAPI';
 import { LogAnalyzer } from './logAnalyzer';
 
-const HTML_PATH_DEBUG_LOGS = 'src/debugLogsSf/debugLogs.html';
+const HTML_PATH_DEBUG_LOGS = 'templates/debugLogs.html';
 
 /**
  * Initialize and display the web view panel for debugging logs.
