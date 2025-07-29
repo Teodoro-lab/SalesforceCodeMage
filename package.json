@@ -2,7 +2,7 @@
   "name": "SalesforceCodeMage",
   "displayName": "Salesforce CodeMage",
   "description": "Utilities for Salesforce developers",
-  "version": "1.0.7",
+  "version": "2.0.0",
   "icon": "resources/magicSF-logo.webp",
   "publisher": "teodoro-lab",
   "homepage": "https://github.com/Teodoro-lab/SalesforceCodeMage/blob/main/README.md",
