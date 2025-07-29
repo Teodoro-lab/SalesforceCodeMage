@@ -361,12 +361,15 @@
             contentDiv.innerHTML = cellsHtml;
         }
 
-        function createCellHtml(cell) {
+       function createCellHtml(cell) {
             const timestampHtml = cell.timestamp ? 
-                `<span class="cell-timestamp">${cell.timestamp}</span>` : '';
+                `<span class="cell-timestamp">${escapeHtml(cell.timestamp)}</span>` : '';
             
             const executionHtml = cell.executionInfo ? 
-                `<span class="execution-info" title="${cell.executionInfo}">${cell.executionInfo}</span>` : '';
+                `<span class="execution-info" title="${escapeHtml(cell.executionInfo)}">${escapeHtml(cell.executionInfo)}</span>` : '';
+            
+            // Clean and trim content to remove extra whitespace
+            const cleanContent = cell.content ? cell.content.replace(/\s+/g, ' ').trim() : '';
             
             let contentHtml = '';
             if (cell.isJson && cell.jsonContent) {
@@ -374,18 +377,16 @@
                 const preview = getJsonPreview(cell.jsonContent);
                 contentHtml = `
                     <div class="cell-content ${cell.isCollapsed ? 'collapsed' : ''}" id="content-${cell.id}">
-                        <div class="json-preview">${preview}</div>
+                        <div class="json-preview">${escapeHtml(preview)}</div>
                         <div class="json-content">
                             <button class="json-export" onclick="exportJson('${cell.id}')">Export JSON</button>
-                            <pre>${JSON.stringify(cell.jsonContent, null, 2)}</pre>
+                            <pre>${escapeHtml(JSON.stringify(cell.jsonContent, null, 2))}</pre>
                         </div>
                     </div>
                 `;
             } else {
                 contentHtml = `
-                    <div class="cell-content ${cell.isCollapsed ? 'collapsed' : ''}" id="content-${cell.id}">
-                        ${escapeHtml(cell.content)}
-                    </div>
+                    <div class="cell-content ${cell.isCollapsed ? 'collapsed' : ''}" id="content-${cell.id}">${escapeHtml(cleanContent)}</div>
                 `;
             }
 
@@ -395,7 +396,7 @@
                         <div class="cell-left">
                             <span class="collapse-icon ${cell.isCollapsed ? 'collapsed' : ''}">▼</span>
                             <span class="cell-badge ${cell.type}">${cell.type}</span>
-                            <span class="cell-message">${escapeHtml(cell.content)}</span>
+                            <span class="cell-message">${escapeHtml(cleanContent)}</span>
                         </div>
                         <div class="cell-right">
                             ${timestampHtml}
