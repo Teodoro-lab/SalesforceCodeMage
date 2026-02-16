@@ -1,101 +1,86 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { findWorkspaceTargetOrg } from './salesforceUtils';
-
-import { SalesforceAPI } from './SalesforceAPI';
-import { setupHoverApexProvider } from './apexHoverProvider';
-import { clearCache } from './cache';
-import { openLogsWebViewCmd, deleteDebugLogsCmd } from './logHandling/LogsCommands';
-import { createSObjTableWebView, showSObjTable } from './sObjectsTables/sObjectsHandling';
+import { SalesforceAPI } from './salesforceAPI';
+import { setupHoverApexProvider } from './hoverProvider';
+import { LwcExplorerProvider } from './lwcExplorerProvider';
+import { CommandManager } from './commandManager';
+import { initializeObjectTableManager } from './objectTables/objectTable';
+import { DebugLogViewerProvider } from './debugLogsSf/debugLogViewer';
 
 export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('magicSF is getting activated!');
     
+    try {
+        const targetOrg = await initializeSalesforceConnection();
+        initializeObjectTableManager(context);
+        setupProviders(context);
+        registerCommands(context, targetOrg);
+        
+        vscode.window.showInformationMessage('magicSF activated successfully!');
+    } catch (error: any) {
+        vscode.window.showErrorMessage('Failed to activate magicSF: ' + error.message);
+    }
+}
+
+async function initializeSalesforceConnection(): Promise<string> {
     const salesforce = SalesforceAPI.getInstance();
     const orgs = await SalesforceAPI.getOrgsInfo();
 
-    let targetOrg: string;
-    try {
-        targetOrg = findWorkspaceTargetOrg();
-    } catch (error: any) {
-        vscode.window.showInformationMessage('Error in getting target org details. Please check the config file: ' + error.message);
-        return;
-    }
+    const targetOrg = findWorkspaceTargetOrg();
+    const targetOrgInfo = orgs.find((org: any) => org.alias === targetOrg);
     
-    const username = orgs.find((org: any) => org.alias === targetOrg).username;
-    const connection = await salesforce.connect(username);
+    if (!targetOrgInfo) {
+        throw new Error(`Target org '${targetOrg}' not found in available orgs`);
+    }
 
-    const activateApexHover = vscode.workspace.getConfiguration('magicSF').get('activateApexHover');
-    if (activateApexHover) {setupHoverApexProvider();}
+    await salesforce.connect(targetOrgInfo.username);
+    return targetOrg;
+}
+
+function setupProviders(context: vscode.ExtensionContext) {
+    setupHoverApexProvider();
+    const lwcExplorerProvider = new LwcExplorerProvider();
+    vscode.window.registerTreeDataProvider('lwcExplorer', lwcExplorerProvider);
+    vscode.commands.registerCommand('magicSF.refresh', () => lwcExplorerProvider.refresh());
+
+    const provider = new DebugLogViewerProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            DebugLogViewerProvider.viewType, 
+            provider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                }
+            }
+        )
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('salesforce.showDebugLogViewer', () => {
+            vscode.commands.executeCommand('workbench.view.extension.salesforce-debug-log-viewer');
+        })
+    );
+}
+
+function registerCommands(context: vscode.ExtensionContext, targetOrg: string) {
+    const commandManager = new CommandManager(context, targetOrg);
     
-    vscode.commands.registerCommand('magicSF.clearCache', clearCacheCmd);
-    vscode.commands.registerCommand('magicSF.OpenFlowInOrg', openFlowInOrgCmd);
-    vscode.commands.registerCommand('magicSF.openDeveloperConsole', () => {openDeveloperConsoleCmd(targetOrg);});
-    vscode.commands.registerCommand('magicSF.sObjectTable', (args) => {sObjectTableCmd(args, context);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTable', () => {showObjectTableInputCmd(context);});
-    vscode.commands.registerCommand('magicSF.ShowSObjTableWithSelectedText', () => {showObjectTableSelectedTxtCmd(context);});
-    vscode.commands.registerCommand('magicSF.openDebugLogs', () => {openLogsWebViewCmd(context);});
-    vscode.commands.registerCommand('magicSF.deleteDebugLogs', deleteDebugLogsCmd);
-}
+    const commands = [
+        { id: 'magicSF.clearCache', handler: commandManager.clearCache },
+        { id: 'magicSF.OpenFlowInOrg', handler: commandManager.openFlowInOrg },
+        { id: 'magicSF.openDeveloperConsole', handler: commandManager.openDeveloperConsole },
+        { id: 'magicSF.sObjectTable', handler: commandManager.sObjectTable },
+        { id: 'magicSF.ShowSObjTable', handler: commandManager.showObjectTableFromInput },
+        { id: 'magicSF.ShowSObjTableWithSelectedText', handler: commandManager.showObjectTableFromSelection },
+        { id: 'magicSF.openDebugLogs', handler: commandManager.openDebugLogs },
+        { id: 'magicSF.deleteDebugLogs', handler: commandManager.deleteDebugLogs },
+        { id: 'magicSF.showTraceFlags', handler: commandManager.showTraceFlags },
+        { id: 'lwcExplorer.openFile', handler: commandManager.openLwcFile },
+        { id: 'magicSF.refreshOrgConnection', handler: commandManager.refreshOrgConnection }
+    ];
 
-async function clearCacheCmd() {
-    vscode.window.showInformationMessage('Clearing cache...');
-    clearCache();
+    commands.forEach(({ id, handler }) => {
+        vscode.commands.registerCommand(id, handler);
+    });
 }
-
-async function openFlowInOrgCmd(uri: vscode.Uri) {
-    vscode.window.showInformationMessage('Opening flow in org...');
-    if (!uri) {
-        vscode.window.showErrorMessage('No file selected');
-        return;
-    }
-    const filePath = path.normalize(uri.fsPath);
-    vscode.window.showInformationMessage(`Selected file: ${filePath}`);
-    SalesforceAPI.openFlowInOrg(filePath);
-}
-
-async function openDeveloperConsoleCmd(targetOrg: any) {
-    vscode.window.showInformationMessage('Opening Developer Console...');
-    const salesforce = SalesforceAPI.getInstance();
-    const org = await salesforce.orgDetails(targetOrg);
-    const instanceUrl = org.instanceUrl;
-    const url = `${instanceUrl}/_ui/common/apex/debug/ApexCSIPage`;
-    vscode.env.openExternal(vscode.Uri.parse(url));
-}
-
-/**
- * Command to show the sObject table in a webview. This is called when the user clicks on the 'View Detailed Information' link in the hover.
- * @param args any
- * @param context vscode.ExtensionContext
- * @param connection jsforce.Connection
- **/
-async function sObjectTableCmd(args: any, context: vscode.ExtensionContext) {
-    const { sObjectName } = args;
-    const extPath = context.extensionPath;
-    const salesforce = SalesforceAPI.getInstance();
-    const fields = await salesforce.fieldsOf(sObjectName);
-    createSObjTableWebView(extPath, fields, sObjectName);
-}
-
-async function showObjectTableSelectedTxtCmd(context: vscode.ExtensionContext) {
-    vscode.window.showInformationMessage('Getting details for the selected sObject...');
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-        const selection = editor.selection;
-        const selectedText = editor.document.getText(selection);
-        const salesforce = SalesforceAPI.getInstance();
-        const fields = await salesforce.fieldsOf(selectedText);
-        showSObjTable(context, selectedText, fields);
-    }
-}
-
-async function showObjectTableInputCmd(context: vscode.ExtensionContext) {
-    vscode.window.showInformationMessage('Getting details for the sObject...');
-    const sObjectName : string = await vscode.window.showInputBox({
-        placeHolder: 'Enter the sObject name to get the details',
-    }) || '';
-    const salesforce = SalesforceAPI.getInstance();
-    const fields = await salesforce.fieldsOf(sObjectName);
-    showSObjTable(context, sObjectName, fields);
-}
-

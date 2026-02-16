@@ -2,8 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { SalesforceAPI } from '../SalesforceAPI';
-import { LogAnalyzer } from './LogAnalyzer';
+import { SalesforceAPI } from '../salesforceAPI';
+import { LogAnalyzer } from './logAnalyzer';
+
+const HTML_PATH_DEBUG_LOGS = 'templates/debugLogs.html';
 
 /**
  * Initialize and display the web view panel for debugging logs.
@@ -51,7 +53,7 @@ function createWebviewPanel(): vscode.WebviewPanel {
  * Read and return the HTML template content.
  */
 function getHtmlTemplate(extPath: string): string {
-    const htmlPath = path.normalize(path.join(extPath, 'webviewTemplates/debugLogsWebView.html'));
+    const htmlPath = path.normalize(path.join(extPath, HTML_PATH_DEBUG_LOGS));
     return fs.readFileSync(htmlPath, 'utf-8');
 }
 
